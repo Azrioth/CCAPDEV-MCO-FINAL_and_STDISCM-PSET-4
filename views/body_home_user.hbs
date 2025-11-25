@@ -1,24 +1,25 @@
-  {{> header_user}}
-    <div class="main">
-      <h1>Recommended</h1>
-      <div class="cafe">
-        {{#each cafe}}
-        <div class="cafe-item">
-          <a href="cafe1_user?cafe_id={{cafe_id}}">
-            <div class="cafe-image">
-              <img src="{{image_name}}" />
-            </div>
-          </a>
-          <div class="cafe-details">
-            <span class="cafe-name">
-              <h3>{{name}}</h3>
-              <h5>{{rating}}/5</h5>
-            </span>
-            <h4>{{address}}</h4>
-            <h4>{{price_range}}</h4>
-            <p>{{description}}</p>
-          </div>
-        </div>
-        {{/each}}
-      </div>
-    </div>
+{{> header_user}}
+<div class="main">
+<h1>Recommended</h1>
+<div class="cafe">
+{{#each cafe}}
+<div class="cafe-item">
+<!-- FIX: Changed from cafe1_user to the correct route /cafe1 -->
+<a href="cafe1?cafe_id={{cafe_id}}">
+<div class="cafe-image">
+<img src="{{image_name}}" />
+</div>
+</a>
+<div class="cafe-details">
+<span class="cafe-name">
+<h3>{{name}}</h3>
+<h5>{{rating}}/5</h5>
+</span>
+<h4>{{address}}</h4>
+<h4>{{price_range}}</h4>
+<p>{{description}}</p>
+</div>
+</div>
+{{/each}}
+</div>
+</div>

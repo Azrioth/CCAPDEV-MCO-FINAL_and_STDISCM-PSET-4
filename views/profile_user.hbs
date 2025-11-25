@@ -3,73 +3,75 @@
 {{else}}
 {{> header}}
 {{/if}}
-  <div class="main">
-    <div class="profile-bio">
-      <div class="profile-bio-image">
-        <img src="{{checkUser.profile_pic}}" />
-      </div>
-      <div class="profile-bio-details">
-        <h1>{{checkUser.username}}</h1>
-        <p>{{checkUser.desc}}</p>
-        {{#if currentLoggedIn}}
-        <a href="edit_profile?username={{checkUser.username}}">
-        <button name = "edit-profile" class="header-profile-button">Edit Profile</button>
-        </a>
-        {{/if}}
-      </div>
-    </div>
-    <hr />
-    <div class="profile-details">
-      <div class="profile-details-left">
-        <h2>Owned Cafes</h2>
-        {{#each checkUser.cafes}}
-          <h5>{{this}}</h5>
-        {{/each}}
-      </div>
-      <div class="profile-details-right">
-        <h2>Past Reviews</h2>
-        <div class="profile-details-right-parent">
-          {{#if review}}
-          {{#each review}}
-            <div class="profile-details-right-item">
-              <a href="/cafe1_user?cafe_id={{cafe_id}}">
-              <div class="profile-details-right-line">
-                <img src="{{image_src}}" />
-                <h3>{{cafe}}</h3>
-              </div>
-              </a>
-              <div class="profile-details-right-line">
-                <h5>{{rating}}/5</h5>
-                <h5>Written: {{date}}</h5>
-                {{#if isEdited}}<h5 style="color:darkgray"> Edited</h5>{{/if}}
-              </div>
-              <p>{{comment}}</p>
-              {{#if owner_response}}
-              <div class="profile-details-comment">
-                <h5>From Owner:</h5>
-                <p>{{owner_response}}</p>
-              </div>
-              {{/if}}
-            </div>
-            {{#if ../currentLoggedIn}}
-            <div>
-            <form action="/delete/{{_id}}" method="post" name="deleteBTN" style="display: inline;">
-              <button name="delete-review" class="header-profile-button" >Delete</button>
-            </form>
-            <a href="edit_review?id={{_id}}">
-              <button name = "edit-review" class="header-profile-button">Edit Review</button>
-            </a>
-            </div>
-            {{/if}}
-          {{/each}}
-          {{else}}
-            <div class="profile-details-right-item">
-              <div class="profile-details-right-line">
-                <p>No Reviews</p>
-              </div>
-            </div>
-          {{/if}}
-        </div>
-      </div>
-    </div>
-  </div>
+
+<div class="main">
+<div class="profile-bio">
+<div class="profile-bio-image">
+<img src="{{checkUser.profile_pic}}" />
+</div>
+<div class="profile-bio-details">
+<h1>{{checkUser.username}}</h1>
+<p>{{checkUser.desc}}</p>
+{{#if currentLoggedIn}}
+<a href="edit_profile?username={{checkUser.username}}">
+<button name = "edit-profile" class="header-profile-button">Edit Profile</button>
+</a>
+{{/if}}
+</div>
+</div>
+<hr />
+<div class="profile-details">
+<div class="profile-details-left">
+<h2>Owned Cafes</h2>
+{{#each checkUser.cafes}}
+<h5>{{this}}</h5>
+{{/each}}
+</div>
+<div class="profile-details-right">
+<h2>Past Reviews</h2>
+<div class="profile-details-right-parent">
+{{#if review}}
+{{#each review}}
+<div class="profile-details-right-item">
+<!-- FIX: Changed from /cafe1_user to the correct route /cafe1 -->
+<a href="/cafe1?cafe_id={{cafe_id}}">
+<div class="profile-details-right-line">
+<img src="{{image_src}}" />
+<h3>{{cafe}}</h3>
+</div>
+</a>
+<div class="profile-details-right-line">
+<h5>{{rating}}/5</h5>
+<h5>Written: {{date}}</h5>
+{{#if isEdited}}<h5 style="color:darkgray"> Edited</h5>{{/if}}
+</div>
+<p>{{comment}}</p>
+{{#if owner_response}}
+<div class="profile-details-comment">
+<h5>From Owner:</h5>
+<p>{{owner_response}}</p>
+</div>
+{{/if}}
+</div>
+{{#if ../currentLoggedIn}}
+<div>
+<form action="/delete/{{_id}}" method="post" name="deleteBTN" style="display: inline;">
+<button name="delete-review" class="header-profile-button" >Delete</button>
+</form>
+<a href="edit_review?id={{_id}}">
+<button name = "edit-review" class="header-profile-button">Edit Review</button>
+</a>
+</div>
+{{/if}}
+{{/each}}
+{{else}}
+<div class="profile-details-right-item">
+<div class="profile-details-right-line">
+<p>No Reviews</p>
+</div>
+</div>
+{{/if}}
+</div>
+</div>
+</div>
+</div>

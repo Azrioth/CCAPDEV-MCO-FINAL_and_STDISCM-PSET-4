@@ -1,96 +1,92 @@
 {{> header_user}}
-  <div class="main">
-    <div class="profile-bio">
-      <div class="profile-bio-image">
-        <img src="{{cafe.image_name}}" />
-      </div>
-      <div class="profile-bio-details">
-        <h1>{{cafe.name}}</h1>
-        <h4>{{cafe.address}}</h4>
-        <h4>{{cafe.price_range}}</h4>
-        <p>{{cafe.description}}</p>
-      </div>
-    </div>
-    <hr />
-    <div class="profile-details">
-      <div class="profile-details-left">
-        <h2>Top Sellers</h2>
-        {{#each cafe.items}}
-        <h5>{{this}}</h5>
-        {{/each}}
-      </div>
-      <div class="profile-details-right">
-        <h2>Past Reviews</h2>
-        <div class="reviews-search">
-          <form action="/search_review_user?cafe_id={{cafe.cafe_id}}" method="post">
-          <div class="reviews-search-bar">
-            <input name="searchInputReview" id="reviews-search-query-input" type="search" placeholder="Search..." value="{{searchInputReview}}" />
-            <button id="reviews-search-query-submit" type="submit">
-              <svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="#666666" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" /></svg>
-            </button>
-          </div>
-          </form>
-        </div>
-        <a href="add_review?cafe_id={{cafe.cafe_id}}">
-          <button class="profile-details-button-right">
-            Create a Review
-          </button>
-        </a>
-        <div class="profile-details-right-parent" id="reviews">
-          {{#each review}}
-          <div class="profile-details-right-item">
-            <a href="/profile_user?username={{username}}">
-            <div class="profile-details-right-line">
-              <img src="Photos/profile_picture.webp" class="profile-picture-image" />
-              <h3>{{username}}</h3>
-            </div>
-            </a>
-            <div class="profile-details-right-line">
-              <h5>{{rating}}/5</h5>
-              <h5>Written: {{date}}</h5>
-              <h5> Helpful: {{isHelpful}}</h5>
-              <h5>Unhelpful: {{isUnhelpful}}</h5>
-              {{#if isEdited}}<h5 style="color:darkgray"> Edited</h5>{{/if}}
-            </div>
-            <p>{{comment}}</p>
-            {{#if owner_response}}
-            <div class="profile-details-comment">
-              <h5>From Owner:</h5>
-              <p>{{owner_response}}</p>
-            </div>
-            {{else}}
-            {{#if ../isOwner}}
-            <div class="profile-details-right-line">
-              <form action="/submitResponse?review_id={{_id}}" method="post" style="display: flex; flex-direction: column; gap: 5px; width:100%;">
-                <h5>Respond as owner:</h5>
-                <input name="input_owner_response" type="text" placeholder="" style="width: 100%; height: 170px;"/>
-                <button name="respond-review" class="header-profile-button" >Respond</button>
-              </form>
-            </div>
-            {{/if}}
-            {{/if}}
-          </div>
-          <div>
-            {{#ifEquals username ../user.username}}
-            <form action="/delete/{{_id}}" method="post" name="deleteBTN" style="display: inline;">
-              <button name="delete-review" class="header-profile-button" >Delete</button>
-            </form>
-            <a href="edit_review?id={{_id}}">
-              <button name = "edit-review" class="header-profile-button">Edit Review</button>
-            </a>
-            {{else}}
-            {{#ifIncludes _id ../user.helpful}}
-            <form action="helpful?id={{_id}}&username={{../user.username}}&change=up" method="post" style="display: inline;">
-              <button name="helpful-review" class="header-profile-button" >Helpful</button>
-            </form>
-            <form action="helpful?id={{_id}}&username={{../user.username}}&change=down" method="post" style="display: inline;">
-              <button name = "unhelpful-review" class="header-profile-button">Unhelpful</button>
-            </form>
-            {{/ifIncludes}}
-            {{/ifEquals}}
-          </div>
-          {{/each}}
-        </div>
-      </div>
-    </div>
-  </div>
+
+<div class="main">
+<div class="profile-bio">
+<div class="profile-bio-image">
+<img src="{{cafe.image_name}}" />
+</div>
+<div class="profile-bio-details">
+<h1>{{cafe.name}}</h1>
+<h4>{{cafe.address}}</h4>
+<h4>{{cafe.price_range}}</h4>
+<p>{{cafe.description}}</p>
+</div>
+</div>
+<hr />
+<div class="profile-details">
+<div class="profile-details-left">
+<h2>Top Sellers</h2>
+{{#each cafe.items}}
+<h5>{{this}}</h5>
+{{/each}}
+</div>
+<div class="profile-details-right">
+<h2>Past Reviews</h2>
+<div class="reviews-search">
+<!-- FIX: Changed action from /search_review_user to the defined route /cafe1 -->
+<form action="/cafe1" method="get">
+<input type="hidden" name="cafe_id" value="{{cafe.cafe_id}}">
+<input type="hidden" name="cafe_name" value="{{cafe.name}}">
+<div class="reviews-search-bar">
+<input name="searchInputReview" id="reviews-search-query-input" type="search" placeholder="Search..." value="{{searchInputReview}}" />
+<button id="reviews-search-query-submit" type="submit">
+<svg style="width:24px;height:24px" viewBox="0 0 24 24"><path fill="#666666" d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z" /></svg>
+</button>
+</div>
+</form>
+</div>
+<div class="profile-details-right-parent">
+{{#each review}}
+<div class="profile-details-right-item">
+<a href="/profile_user?username={{username}}">
+<div class="profile-details-right-line">
+<img src="" />
+<h3>{{username}}</h3>
+</div>
+</a>
+<div class="profile-details-right-line">
+<h5>{{rating}}/5</h5>
+<h5>Written: {{date}}</h5>
+{{#if isEdited}}<h5 style="color:darkgray"> Edited</h5>{{/if}}
+</div>
+<p>{{comment}}</p>
+{{#if owner_response}}
+<div class="profile-details-comment">
+<h5>From Owner:</h5>
+<p>{{owner_response}}</p>
+</div>
+{{/if}}
+{{#if isOwner}}
+<div class="profile-details-comment">
+<form action="" method="post" style="width: 100%;">
+<h5>Respond as owner:</h5>
+<input name="input_owner_response" type="text" placeholder="" style="width: 100%; height: 170px;"/>
+<button name="respond-review" class="header-profile-button" >Respond</button>
+</form>
+</div>
+{{/if}}
+</div>
+<div>
+{{#ifEquals username ../user.username}}
+<form action="/delete/{{_id}}" method="post" name="deleteBTN" style="display: inline;">
+<button name="delete-review" class="header-profile-button" >Delete</button>
+</form>
+<a href="edit_review?id={{_id}}">
+<button name = "edit-review" class="header-profile-button">Edit Review</button>
+</a>
+{{else}}
+{{#ifIncludes _id ../user.helpful}}
+<form action="helpful?id={{_id}}&username={{../user.username}}&change=up" method="post" style="display: inline;">
+<button name="helpful-review" class="header-profile-button" >Helpful</button>
+</form>
+<form action="helpful?id={{_id}}&username={{../user.username}}&change=down" method="post" style="display: inline;">
+<button name = "unhelpful-review" class="header-profile-button">Unhelpful</button>
+</form>
+{{/ifIncludes}}
+{{/ifEquals}}
+</div>
+{{/each}}
+</div>
+</div>
+</div>
+</div>

@@ -1,60 +1,57 @@
 {{> header_user}}
-  <div class="main">
-    <h1>Edit User Profile</h1>
-    <form action="submitEditUser" method="post">
-    <div class="edit-line">
-      <div class="edit-line-left">
-        <h2>Username</h2>
-      </div>
-      <div class="edit-line-right">
-        <input name="username" type="text" class="text-answer" value="{{user.username}}" readonly />
-      </div>
-    </div>
-    <div class="edit-line">
-      <div class="edit-line-left">
-        <h2>Change Profile Picture</h2>
-      </div>
-      <div class="edit-line-right">
-        <input type="text" class="text-answer" placeholder="" />
-      </div>
-    </div>
-    <div class="edit-line">
-      <div class="edit-line-left">
-        <h2>Change Password</h2>
-      </div>
-      <div class="edit-line-right">
-        <input name="input_password" type="password" class="text-answer" placeholder="********" />
-      </div>
-    </div>
-    <div class="edit-line">
-      <div class="edit-line-left">
-        <h2>Confirm New Password</h2>
-      </div>
-      <div class="edit-line-right">
-        <input name="confirm_password" type="password" class="text-answer" placeholder="********" />
-      </div>
-    </div>
-    <div class="edit-line">
-      <div class="edit-line-left">
-        <h2>Change User Bio</h2>
-      </div>
-      <div class="edit-line-right">
-        <input name="input_desc" type="text" class="text-answer" id="edit-bio" placeholder="" value="{{user.desc}}" />
-      </div>
-    </div>
-    <div class="edit-line">
-      <div class="edit-line-left">
-      </div>
-      <div class="edit-line-right">
-        <a href="profile_user">
-          <button class="edit-button">
-            Save Information
-          </button>
-        </a>
-      </div>
-    </div>
-    </form>
-  </div>
-</body>
 
-</html>
+<div class="main">
+<h1>Edit User Profile</h1>
+<form action="submitEditUser" method="post">
+<div class="edit-line">
+<div class="edit-line-left">
+<h2>Username</h2>
+</div>
+<div class="edit-line-right">
+<input name="username" type="text" class="text-answer" value="{{user.username}}" readonly />
+</div>
+</div>
+<div class="edit-line">
+<div class="edit-line-left">
+<h2>Change Profile Picture</h2>
+</div>
+<div class="edit-line-right">
+<!-- CRITICAL FIX: Added name attribute and pre-filled current value -->
+<input name="input_profile_pic" type="text" class="text-answer" placeholder="e.g., Photos/new_pic.jpg" value="{{user.profile_pic}}" />
+</div>
+</div>
+<div class="edit-line">
+<div class="edit-line-left">
+<h2>Change Password</h2>
+</div>
+<div class="edit-line-right">
+<input name="input_password" type="password" class="text-answer" placeholder="" />
+</div>
+</div>
+<div class="edit-line">
+<div class="edit-line-left">
+<h2>Confirm New Password</h2>
+</div>
+<div class="edit-line-right">
+<input name="confirm_password" type="password" class="text-answer" placeholder="" />
+</div>
+</div>
+<div class="edit-line">
+<div class="edit-line-left">
+<h2>Change User Bio</h2>
+</div>
+<div class="edit-line-right">
+<input name="input_desc" type="text" class="text-answer" id="edit-bio" placeholder="" value="{{user.desc}}" />
+</div>
+</div>
+<div class="edit-line">
+<div class="edit-line-left">
+</div>
+<div class="edit-line-right">
+<button class="header-profile-button" type="submit">
+Save Changes
+</button>
+</div>
+</div>
+</form>
+</div>
