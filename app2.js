@@ -27,22 +27,29 @@ mongoose.connect(DB_URI)
   .then(() => console.log('API Node: Connected to MongoDB'))
   .catch(err => console.error('API Node: DB Connection Error', err));
 
-// --- ROUTES (Mapped to Controllers) ---
+// --- API ROUTER SETUP ---
+const apiRouter = express.Router();
+
+// Define all routes on the router without the /api prefix (since we mount it at /api)
 
 // Auth Routes
-server.post('/api/login', authController.login);
-server.post('/api/register', authController.register);
-server.get('/api/user/:username', authController.getProfile);
-server.put('/api/user/:username', authController.updateProfile);
+apiRouter.post('/login', authController.login);
+apiRouter.post('/register', authController.register);
+apiRouter.get('/user/:username', authController.getProfile);
+apiRouter.put('/user/:username', authController.updateProfile);
 
 // Cafe Routes
-server.get('/api/cafes', cafeController.getCafes);
-server.get('/api/cafe/:id', cafeController.getCafeById);
+apiRouter.get('/cafes', cafeController.getCafes);
+apiRouter.get('/cafe/:id', cafeController.getCafeById);
+apiRouter.post('/add-cafe', cafeController.createCafe); // This is the new route
 
 // Review Routes
-server.get('/api/reviews', reviewController.getReviews);
-server.post('/api/review', reviewController.addReview);
-server.delete('/api/review/:id', reviewController.deleteReview);
+apiRouter.get('/reviews', reviewController.getReviews);
+apiRouter.post('/review', reviewController.addReview);
+apiRouter.delete('/review/:id', reviewController.deleteReview);
+
+// Apply the /api prefix to all routes defined in apiRouter
+server.use('/api', apiRouter);
 
 // Start Server
 server.listen(PORT, () => {
