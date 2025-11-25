@@ -24,3 +24,33 @@ exports.getCafeById = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+exports.createCafe = async (req, res) => {
+  try {
+    // 1. Generate a simple numeric ID (since your schema uses Number for cafe_id)
+    // In a real app, you'd use UUID or let Mongo handle _id, but for this schema:
+    const count = await cafeModel.countDocuments();
+    const newId = count + 1;
+
+    // 2. Create the new Cafe object
+    const newCafe = new cafeModel({
+      name: req.body.name,
+      description: req.body.bio, // Mapping 'bio' from form to 'description' in schema
+      rating: 0, // Default rating
+      items: req.body.items,
+      owner: req.body.owner,
+      address: req.body.address,
+      price_range: req.body.price_range,
+      image_name: req.body.image, // Assuming URL or path provided
+      cafe_id: newId
+    });
+
+    // 3. Save to Database
+    await newCafe.save();
+
+    // 4. Return the new ID so frontend can redirect
+    res.json({ status: 'success', cafe_id: newId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
