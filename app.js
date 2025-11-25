@@ -174,10 +174,14 @@ server.get('/add_cafe', (req, res) => {
 });
 
 server.get('/cafe1', async (req, res) => {
-    const cafeId = req.query.cafe_id;
+    if (res.locals.loggedIn) {
+        return res.redirect(`/cafe1_user?cafe_id=${req.query.cafe_id}`);
+    }
+  const cafeId = req.query.cafe_id;
     const cafeRes = await fetchAPI('get', `/cafe/${cafeId}`);
-    const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
-
+    // const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
+  const cafe = cafeRes.data || {};
+const reviewsRes = await fetchAPI('get', '/reviews', null, { cafe: cafe.name });
     res.render('cafe1', {
         layout: 'index',
         cafe: cafeRes.data,
@@ -191,9 +195,10 @@ server.get('/cafe1_user', async (req, res) => {
 
     const cafeId = req.query.cafe_id;
     const cafeRes = await fetchAPI('get', `/cafe/${cafeId}`);
-    const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
+    // const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
+const cafe = cafeRes.data || {};
+const reviewsRes = await fetchAPI('get', '/reviews', null, { cafe: cafe.name });
 
-    const cafe = cafeRes.data || {};
     const isOwner = res.locals.user.cafes && res.locals.user.cafes.includes(cafe.name);
 
     res.render('cafe1_user', {
