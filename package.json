@@ -2,22 +2,37 @@
   "name": "mco2",
   "version": "1.0.0",
   "description": "MEMBERS:\r Angeles, Marc Andrei D.(S11)\r Dimacuangan, Aldwin Renzel P. (S11)\r Ramos, Rafael Anton T. (S12)\r Reyes, Ma. Julianna Re-an Dg. (S11)",
+  "homepage": "https://github.com/Azrioth/CCAPDEV-MCO-FINAL#readme",
+  "bugs": {
+    "url": "https://github.com/Azrioth/CCAPDEV-MCO-FINAL/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Azrioth/CCAPDEV-MCO-FINAL.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon app.js"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "alert": "^6.0.1",
+    "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.2",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "express-handlebars": "^7.1.2",
     "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.5.0",
     "mongoose": "^8.3.0",
     "nodemon": "^3.1.0"
-  }
+  },
+  "keywords": [],
+  "devDependencies": {}
 }
