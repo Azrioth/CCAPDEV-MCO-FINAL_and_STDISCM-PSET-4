@@ -10,6 +10,7 @@ const mongoose = require('mongoose');
 const authController = require('./controllers/authController.js');
 const cafeController = require('./controllers/cafeController.js');
 const reviewController = require('./controllers/reviewController.js');
+const reservationController = require('./controllers/reservationController.js');
 
 const server = express();
 
@@ -47,6 +48,12 @@ apiRouter.post('/add-cafe', cafeController.createCafe); // This is the new route
 apiRouter.get('/reviews', reviewController.getReviews);
 apiRouter.post('/review', reviewController.addReview);
 apiRouter.delete('/review/:id', reviewController.deleteReview);
+
+// Reserve Routes
+apiRouter.post('/reservations', reservationController.createReservation);
+apiRouter.get('/reservations/user/:username', reservationController.getUserReservations);
+apiRouter.get('/reservations/owner', reservationController.getOwnerReservations);
+apiRouter.post('/reservations/status', reservationController.updateStatus);
 
 // Apply the /api prefix to all routes defined in apiRouter
 server.use('/api', apiRouter);

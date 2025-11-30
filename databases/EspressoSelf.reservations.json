@@ -1,0 +1,34 @@
+[
+  {
+    "_id": { "$oid": "65ec99998166e6f3518c9991" },
+    "username": "MadDogMaj",
+    "cafe_id": 4,
+    "cafe_name": "Coffee Project",
+    "status": "Pending",
+    "date": "2024-03-01T10:00:00.000Z"
+  },
+  {
+    "_id": { "$oid": "65ec99998166e6f3518c9992" },
+    "username": "BaldTiger1",
+    "cafe_id": 4,
+    "cafe_name": "Coffee Project",
+    "status": "Confirmed",
+    "date": "2024-02-28T14:30:00.000Z"
+  },
+  {
+    "_id": { "$oid": "65ec99998166e6f3518c9993" },
+    "username": "JudgementKazzy",
+    "cafe_id": 2,
+    "cafe_name": "Mood & Coffee",
+    "status": "Pending",
+    "date": "2024-03-02T09:15:00.000Z"
+  },
+  {
+    "_id": { "$oid": "65ec99998166e6f3518c9994" },
+    "username": "DaigoWithAGun",
+    "cafe_id": 1,
+    "cafe_name": "Starbucks",
+    "status": "Rejected",
+    "date": "2024-02-25T16:00:00.000Z"
+  }
+]
