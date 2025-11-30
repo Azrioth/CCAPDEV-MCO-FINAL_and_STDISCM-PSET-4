@@ -5,73 +5,153 @@
 {{/if}}
 
 <div class="main">
-<div class="profile-bio">
-<div class="profile-bio-image">
-<img src="{{checkUser.profile_pic}}" />
+    <!-- USER BIO SECTION -->
+    <div class="profile-bio">
+        <div class="profile-bio-image">
+            <img src="{{checkUser.profile_pic}}" onerror="this.src='https://via.placeholder.com/150';"/>
+        </div>
+        <div class="profile-bio-details">
+            <h1>{{checkUser.username}}</h1>
+            <p>{{checkUser.desc}}</p>
+            {{#if currentLoggedIn}}
+            <a href="edit_profile?username={{checkUser.username}}">
+                <button name="edit-profile" class="header-profile-button">Edit Profile</button>
+            </a>
+            {{/if}}
+        </div>
+    </div>
+
+    <hr />
+
+    <div class="profile-details">
+        <!-- LEFT COLUMN -->
+        <div class="profile-details-left">
+            <h2>Owned Cafes</h2>
+            {{#if checkUser.cafes}}
+                {{#each checkUser.cafes}}
+                <h5>{{this}}</h5>
+                {{/each}}
+            {{else}}
+                <p>No cafes owned.</p>
+            {{/if}}
+
+            <!-- === MY RESERVATIONS (Student View / View Grades) === -->
+            <!-- Shows the status of reservations the USER has made -->
+            <h2 style="margin-top: 30px;">My Reservations</h2>
+            {{#if reservations}}
+            <div class="profile-details-right-parent">
+                {{#each reservations}}
+                <div class="profile-details-right-item" style="border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
+                    <h4 style="margin: 0;">{{cafe_name}}</h4>
+                    <p style="margin: 5px 0; font-size: 0.9em; color: #555;">Date: {{date}} at {{time}}</p>
+                    <p style="margin: 0;">
+                        <strong>Status: </strong>
+                        <span style="font-weight: bold; color: {{#ifEquals status 'Confirmed'}}green{{else ifEquals status 'Rejected'}}red{{else}}orange{{/ifEquals}};">
+                            {{status}}
+                        </span>
+                    </p>
+                </div>
+                {{/each}}
+            </div>
+            {{else}}
+            <p style="color: #777;">You have no active reservations.</p>
+            {{/if}}
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="profile-details-right">
+
+            <!-- === OWNER DASHBOARD (Faculty View / Upload Grades) === -->
+            <!-- Only shows if the logged-in user owns cafes and has incoming requests -->
+            {{#if ownerRequests}}
+            <div style="background-color: #fff8e1; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ffe082;">
+                <h2 style="margin-top: 0; color: #d35400;">Manage Reservations</h2>
+                <div class="profile-details-right-parent">
+                    {{#each ownerRequests}}
+                    <div class="profile-details-right-item" style="background-color: white; border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px;">
+                        <h3 style="margin-top: 0;">Request for: {{cafe_name}}</h3>
+                        <p><strong>From User:</strong> {{username}}</p>
+                        <p><strong>Date/Time:</strong> {{date}} @ {{time}}</p>
+                        <p><strong>Notes:</strong> {{notes}}</p>
+                        <p><strong>Current Status:</strong>
+                            <span style="font-weight: bold; color: {{#ifEquals status 'Confirmed'}}green{{else ifEquals status 'Rejected'}}red{{else}}orange{{/ifEquals}};">
+                                {{status}}
+                            </span>
+                        </p>
+
+                        <!-- ACTION BUTTONS (Only show if Pending) -->
+                        {{#ifEquals status 'Pending'}}
+                        <div style="margin-top: 15px; display: flex; gap: 10px;">
+                            <!-- Accept Form -->
+                            <form action="/reservations/status" method="post">
+                                <input type="hidden" name="reservation_id" value="{{../_id}}">
+                                <button type="submit" name="status" value="Confirmed" class="header-profile-button" style="background-color: #28a745; color: white; border: none; padding: 8px 15px;">
+                                    Accept
+                                </button>
+                            </form>
+
+                            <!-- Reject Form -->
+                            <form action="/reservations/status" method="post">
+                                <input type="hidden" name="reservation_id" value="{{../_id}}">
+                                <button type="submit" name="status" value="Rejected" class="header-profile-button" style="background-color: #dc3545; color: white; border: none; padding: 8px 15px;">
+                                    Reject
+                                </button>
+                            </form>
+                        </div>
+                        {{/ifEquals}}
+                    </div>
+                    {{/each}}
+                </div>
+            </div>
+            {{/if}}
+
+            <!-- === PAST REVIEWS === -->
+            <h2>Past Reviews</h2>
+            <div class="profile-details-right-parent">
+                {{#if review}}
+                {{#each review}}
+                <div class="profile-details-right-item">
+                    <a href="/cafe1?cafe_id={{cafe_id}}">
+                        <div class="profile-details-right-line">
+                            <img src="{{image_src}}" onerror="this.src='https://via.placeholder.com/50';" />
+                            <h3>{{cafe}}</h3>
+                        </div>
+                    </a>
+                    <div class="profile-details-right-line">
+                        <h5>{{rating}}/5</h5>
+                        <h5>Written: {{date}}</h5>
+                        {{#if isEdited}}<h5 style="color:darkgray"> Edited</h5>{{/if}}
+                    </div>
+                    <p>{{comment}}</p>
+
+                    {{#if owner_response}}
+                    <div class="profile-details-comment">
+                        <h5>From Owner:</h5>
+                        <p>{{owner_response}}</p>
+                    </div>
+                    {{/if}}
+                </div>
+
+                {{#if ../currentLoggedIn}}
+                <div>
+                    <form action="/delete/{{_id}}" method="post" name="deleteBTN" style="display: inline;">
+                        <button name="delete-review" class="header-profile-button">Delete</button>
+                    </form>
+                    <a href="edit_review?id={{_id}}">
+                        <button name="edit-review" class="header-profile-button">Edit Review</button>
+                    </a>
+                </div>
+                {{/if}}
+                {{/each}}
+                {{else}}
+                <div class="profile-details-right-item">
+                    <div class="profile-details-right-line">
+                        <p>No Reviews</p>
+                    </div>
+                </div>
+                {{/if}}
+            </div>
+        </div>
+    </div>
 </div>
-<div class="profile-bio-details">
-<h1>{{checkUser.username}}</h1>
-<p>{{checkUser.desc}}</p>
-{{#if currentLoggedIn}}
-<a href="edit_profile?username={{checkUser.username}}">
-<button name = "edit-profile" class="header-profile-button">Edit Profile</button>
-</a>
-{{/if}}
-</div>
-</div>
-<hr />
-<div class="profile-details">
-<div class="profile-details-left">
-<h2>Owned Cafes</h2>
-{{#each checkUser.cafes}}
-<h5>{{this}}</h5>
-{{/each}}
-</div>
-<div class="profile-details-right">
-<h2>Past Reviews</h2>
-<div class="profile-details-right-parent">
-{{#if review}}
-{{#each review}}
-<div class="profile-details-right-item">
-<!-- FIX: Changed from /cafe1_user to the correct route /cafe1 -->
-<a href="/cafe1_user?cafe_id={{cafe_id}}">
-<div class="profile-details-right-line">
-<img src="{{image_src}}" />
-<h3>{{cafe}}</h3>
-</div>
-</a>
-<div class="profile-details-right-line">
-<h5>{{rating}}/5</h5>
-<h5>Written: {{date}}</h5>
-{{#if isEdited}}<h5 style="color:darkgray"> Edited</h5>{{/if}}
-</div>
-<p>{{comment}}</p>
-{{#if owner_response}}
-<div class="profile-details-comment">
-<h5>From Owner:</h5>
-<p>{{owner_response}}</p>
-</div>
-{{/if}}
-</div>
-{{#if ../currentLoggedIn}}
-<div>
-<form action="/delete/{{_id}}" method="post" name="deleteBTN" style="display: inline;">
-<button name="delete-review" class="header-profile-button" >Delete</button>
-</form>
-<a href="edit_review?id={{_id}}">
-<button name = "edit-review" class="header-profile-button">Edit Review</button>
-</a>
-</div>
-{{/if}}
-{{/each}}
-{{else}}
-<div class="profile-details-right-item">
-<div class="profile-details-right-line">
-<p>No Reviews</p>
-</div>
-</div>
-{{/if}}
-</div>
-</div>
-</div>
-</div>
+```

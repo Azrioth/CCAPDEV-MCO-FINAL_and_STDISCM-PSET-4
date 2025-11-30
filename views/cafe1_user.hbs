@@ -7,6 +7,11 @@
 </div>
 <div class="profile-bio-details">
 <h1>{{cafe.name}}</h1>
+  <form action="/make-reservation" method="POST">
+        <input type="hidden" name="cafe_id" value="{{cafe.cafe_id}}">
+        <input type="hidden" name="cafe_name" value="{{cafe.name}}">
+        <button class="header-profile-button" type="submit">Request Reservation</button>
+    </form>
 <h4>{{cafe.address}}</h4>
 <h4>{{cafe.price_range}}</h4>
 <p>{{cafe.description}}</p>
