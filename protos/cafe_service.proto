@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package cafe_service;
+
+// --- Message Definitions ---
+
+// A message representing a single Cafe entry
+message Cafe {
+  int32 id = 1;
+  string name = 2;
+  string description = 3;
+  float rating = 4;
+}
+
+// Request to get a specific cafe by ID
+message GetCafeRequest {
+  int32 cafe_id = 1;
+}
+
+// Request to create a new reservation
+message CreateReservationRequest {
+  string username = 1;
+  int32 cafe_id = 2;
+  string reservation_time = 3; // e.g., "2025-12-01T14:30:00Z"
+}
+
+// Response for a reservation creation
+message ReservationResponse {
+  string status = 1; // "SUCCESS" or "FAILED"
+  string reservation_id = 2;
+}
+
+// --- Service Definition ---
+
+// The main service contract
+service CafeReviewService {
+  // Simple unary RPC to retrieve a single cafe
+  rpc GetCafe(GetCafeRequest) returns (GetCafeResponse);
+
+  // Unary RPC to make a reservation
+  rpc MakeReservation(CreateReservationRequest) returns (MakeReservationResponse);
+}
