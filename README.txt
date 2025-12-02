@@ -1,3 +1,4 @@
+(CCAPDEV-MCO-FINAL)
 MEMBERS:
 Angeles, Marc Andrei D.(S11)
 Dimacuangan, Aldwin Renzel P. (S11)
@@ -13,3 +14,9 @@ create a database named "EspressoSelf" (without "")
 the program will make the schemas automatically
 import data from the appropriate .json files found in the "databases" folder
 
+(STDISCM-PSET-4)
+MEMBERS:
+De Guzman, Evan Mari B.
+Dimaculangan, Aldwin Renzel P.
+Kimhoko, Jamuel Erwin C.
+Ramos, Rafael Anton T.
