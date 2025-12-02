@@ -19,6 +19,8 @@
     "dev": "nodemon app.js"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.1",
+    "@grpc/proto-loader": "^0.8.0",
     "alert": "^6.0.1",
     "axios": "^1.13.2",
     "bcrypt": "^5.1.1",
