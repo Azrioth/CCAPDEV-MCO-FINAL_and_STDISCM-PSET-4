@@ -12,13 +12,18 @@ const server = express();
 
 // --- CONFIGURATION ---
 const PORT = process.env.VIEW_PORT || 3000;
-const API_URL = process.env.API_BASE_URL;
+// const API_URL = process.env.API_BASE_URL; // Removed
+const CORE_API_URL = process.env.CORE_API_URL;
+const REVIEW_API_URL = process.env.REVIEW_API_URL;
+const RESERVATION_API_URL = process.env.RESERVATION_API_URL;
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // --- UTILITY FUNCTION: API Fetch Wrapper ---
-const fetchAPI = async (method, path, body = null, queryParams = {}) => {
+// REFACTORED: Now accepts the full base URL (e.g., CORE_API_URL) as the first argument
+const fetchAPI = async (baseURL, method, path, body = null, queryParams = {}) => {
   try {
-    const url = new URL(`${API_URL}${path}`);
+    const url = new URL(`${baseURL}${path}`);
     Object.keys(queryParams).forEach(key => url.searchParams.append(key, queryParams[key]));
 
     const config = {
@@ -94,12 +99,12 @@ server.get('/', (req, res) => {
 });
 
 server.get('/body_home_user', async (req, res) => {
-  const result = await fetchAPI('get', '/cafes');
+  const result = await fetchAPI(CORE_API_URL, 'get', '/cafes');
   res.render('body_home_user', { layout: 'index', cafe: result.data });
 });
 
 server.get('/body_home_nouser', async (req, res) => {
-  const result = await fetchAPI('get', '/cafes');
+  const result = await fetchAPI(CORE_API_URL, 'get', '/cafes');
   res.render('body_home_nouser', { layout: 'index', cafe: result.data });
 });
 
@@ -113,7 +118,7 @@ server.post('/logout', (req, res) => {
 });
 
 server.post('/body_home_user', async (req, res) => {
-  const result = await fetchAPI('post', '/login', { username: req.body.user, password: req.body.pass });
+  const result = await fetchAPI(CORE_API_URL, 'post', '/login', { username: req.body.user, password: req.body.pass });
 
   if (result.data.token) {
     // Token expires in 1 hour
@@ -135,7 +140,7 @@ server.post('/submitForm', async (req, res) => {
     email: req.body.inputEmail
   };
 
-  const result = await fetchAPI('post', '/register', payload);
+  const result = await fetchAPI(CORE_API_URL, 'post', '/register', payload);
 
   if (result.status === 200 || result.status === 201) {
     res.redirect('/login');
@@ -159,7 +164,7 @@ server.post('/add-cafe', async (req, res) => {
     owner: res.locals.user.username
   };
 
-  const result = await fetchAPI('post', '/add-cafe', payload);
+  const result = await fetchAPI(CORE_API_URL, 'post', '/add-cafe', payload);
 
   if (result.status === 200 || result.status === 201) {
     res.redirect(`/cafe1_user?cafe_id=${result.data.cafe_id}`);
@@ -178,10 +183,10 @@ server.get('/cafe1', async (req, res) => {
     return res.redirect(`/cafe1_user?cafe_id=${req.query.cafe_id}`);
   }
   const cafeId = req.query.cafe_id;
-  const cafeRes = await fetchAPI('get', `/cafe/${cafeId}`);
+  const cafeRes = await fetchAPI(CORE_API_URL, 'get', `/cafe/${cafeId}`);
   // const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
   const cafe = cafeRes.data || {};
-  const reviewsRes = await fetchAPI('get', '/reviews', null, { cafe: cafe.name });
+  const reviewsRes = await fetchAPI(REVIEW_API_URL, 'get', '/reviews', null, { cafe: cafe.name });
   res.render('cafe1', {
     layout: 'index',
     cafe: cafeRes.data,
@@ -194,10 +199,10 @@ server.get('/cafe1_user', async (req, res) => {
   if (!res.locals.loggedIn) return res.redirect('/login');
 
   const cafeId = req.query.cafe_id;
-  const cafeRes = await fetchAPI('get', `/cafe/${cafeId}`);
+  const cafeRes = await fetchAPI(CORE_API_URL, 'get', `/cafe/${cafeId}`);
   // const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
   const cafe = cafeRes.data || {};
-  const reviewsRes = await fetchAPI('get', '/reviews', null, { cafe: cafe.name });
+  const reviewsRes = await fetchAPI(REVIEW_API_URL, 'get', '/reviews', null, { cafe: cafe.name });
 
   const isOwner = res.locals.user.cafes && res.locals.user.cafes.includes(cafe.name);
 
@@ -223,7 +228,7 @@ server.post('/submitReview', async (req, res) => {
     date: new Date().toISOString().split('T')[0],
   };
 
-  await fetchAPI('post', '/review', payload);
+  await fetchAPI(REVIEW_API_URL, 'post', '/review', payload);
   // Redirect back to the specific cafe page
   res.redirect(`/cafe1_user?cafe_id=${req.body.cafe_id}`);
 });
@@ -238,7 +243,7 @@ server.post('/submitEditedReview', async (req, res) => {
     isEdited: true
   };
 
-  await fetchAPI('patch', `/review/${reviewId}`, payload);
+  await fetchAPI(REVIEW_API_URL, 'patch', `/review/${reviewId}`, payload);
   res.redirect('/profile_user');
 });
 
@@ -246,7 +251,7 @@ server.post('/delete/:id', async (req, res) => {
   if (!res.locals.loggedIn) return res.redirect('/login');
 
   const reviewId = req.params.id;
-  await fetchAPI('delete', `/review/${reviewId}`);
+  await fetchAPI(REVIEW_API_URL, 'delete', `/review/${reviewId}`);
   res.redirect('/profile_user');
 });
 
@@ -268,9 +273,9 @@ server.get('/profile_user', async (req, res) => {
 
   const username = req.query.username || res.locals.user.username;
 
-  const userRes = await fetchAPI('get', `/user/${username}`);
-  const reviewsRes = await fetchAPI('get', `/reviews?username=${username}`);
-  const reservationRes = await fetchAPI('get', `/reservations/user/${username}`);
+  const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
+  const reviewsRes = await fetchAPI(REVIEW_API_URL, 'get', `/reviews?username=${username}`);
+  const reservationRes = await fetchAPI(RESERVATION_API_URL, 'get', `/reservations/user/${username}`);
 
   let ownerRequests = [];
 
@@ -279,14 +284,21 @@ server.get('/profile_user', async (req, res) => {
     userRes.data.cafes.length > 0) {
 
     const cafeList = userRes.data.cafes.join(',');
-    const ownerRes = await fetchAPI('get', '/reservations/owner', null, { cafes: cafeList });
+    const ownerRes = await fetchAPI(RESERVATION_API_URL, 'get', '/reservations/owner', null, { cafes: cafeList });
 
     // ⭐ ABSOLUTE FIX — ensure each object has an `_id`
-    ownerRequests = (ownerRes.data || []).map(r => ({
+    // viewnode.js around line 290
+    // const ownerRes = await fetchAPI(RESERVATION_API_URL, 'get', '/reservations/owner', null, { cafes: cafeList });
+
+    // Check if ownerRes.data is an array before using .map()
+    // The data variable should be initialized to an empty array if not an array.
+    const ownerData = Array.isArray(ownerRes.data) ? ownerRes.data : [];
+
+    // Now map over the verified array
+    ownerRequests = ownerData.map(r => ({
       ...r,
       _id: r._id || r.id || r.reservation_id
     }));
-
     console.log("OWNER REQUESTS PASSED TO HBS:", ownerRequests);
   }
 
@@ -305,7 +317,7 @@ server.get('/edit_profile', async (req, res) => {
 
   if (username !== res.locals.user.username) return res.redirect('/profile_user');
 
-  const userRes = await fetchAPI('get', `/user/${username}`);
+  const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
   res.render('edit_profile', { layout: 'index', user: userRes.data });
 });
 
@@ -322,7 +334,7 @@ server.post('/submitEditUser', async (req, res) => {
   } = req.body;
 
   if (input_password && input_password !== confirm_password) {
-    const userRes = await fetchAPI('get', `/user/${username}`);
+    const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
     return res.render('edit_profile', {
       layout: 'index',
       user: userRes.data,
@@ -339,12 +351,12 @@ server.post('/submitEditUser', async (req, res) => {
     payload.password = input_password;
   }
 
-  const result = await fetchAPI('put', `/user/${username}`, payload);
+  const result = await fetchAPI(CORE_API_URL, 'put', `/user/${username}`, payload);
 
   if (result.status === 200) {
     res.redirect(`/profile_user?username=${username}`);
   } else {
-    const userRes = await fetchAPI('get', `/user/${username}`);
+    const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
     res.render('edit_profile', {
       layout: 'index',
       user: userRes.data,
@@ -356,7 +368,7 @@ server.post('/submitEditUser', async (req, res) => {
 // 7. Search & Reviews
 server.post('/search_cafe', (req, res) => res.redirect(`/?search=${req.body.searchInput}`));
 server.get('/search_cafe', async (req, res) => {
-  const result = await fetchAPI('get', '/cafes', null, { search: req.query.searchInput });
+  const result = await fetchAPI(CORE_API_URL, 'get', '/cafes', null, { search: req.query.searchInput });
   const targetView = res.locals.loggedIn ? 'body_home_user' : 'body_home_nouser';
   res.render(targetView, {
     layout: 'index',
@@ -390,7 +402,7 @@ server.post('/make-reservation', async (req, res) => {
     cafe_name: req.body.cafe_name
   };
 
-  await fetchAPI('post', '/reservations', payload);
+  await fetchAPI(RESERVATION_API_URL, 'post', '/reservations', payload);
   res.redirect(`/profile_user`); // Redirect to profile to see status
 });
 
@@ -406,7 +418,7 @@ server.post('/reservations/status', async (req, res) => {
     status: status
   };
 
-  await fetchAPI('post', '/reservations/status', payload);
+  await fetchAPI(RESERVATION_API_URL, 'post', '/reservations/status', payload);
 
   // Redirect back to the profile page (Owner Dashboard)
   res.redirect(`/profile_user?username=${res.locals.user.username}`);
