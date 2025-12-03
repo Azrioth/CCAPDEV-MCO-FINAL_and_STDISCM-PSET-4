@@ -27,9 +27,14 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 const cafeProto = grpc.loadPackageDefinition(packageDefinition).cafe_service;
 
 // Connect to Microservices (Ports must match the server files)
-const coreClient = new cafeProto.CoreService('localhost:50051', grpc.credentials.createInsecure());
-const reviewClient = new cafeProto.ReviewService('localhost:50052', grpc.credentials.createInsecure());
-const reservationClient = new cafeProto.ReservationService('localhost:50053', grpc.credentials.createInsecure());
+//
+const CORE_GRPC_ADDRESS = process.env.CORE_GRPC_ADDRESS || 'localhost:50051';
+const REVIEW_GRPC_ADDRESS = process.env.REVIEW_GRPC_ADDRESS || 'localhost:50052';
+const RESERVATION_GRPC_ADDRESS = process.env.RESERVATION_GRPC_ADDRESS || 'localhost:50053';
+
+const coreClient = new cafeProto.CoreService(CORE_GRPC_ADDRESS, grpc.credentials.createInsecure());
+const reviewClient = new cafeProto.ReviewService(REVIEW_GRPC_ADDRESS, grpc.credentials.createInsecure());
+const reservationClient = new cafeProto.ReservationService(RESERVATION_GRPC_ADDRESS, grpc.credentials.createInsecure());
 
 // --- HELPER: Promisify gRPC Calls ---
 const grpcCall = (client, method, payload = {}) => {
