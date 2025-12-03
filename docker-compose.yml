@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # --- BACKEND 1: CORE API ---
+  core_api:
+    build:
+      context: .
+      dockerfile: docker/core.Dockerfile # <-- UPDATED PATH
+    ports:
+      - "50051:50051"
+    environment:
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - cafe-network
+
+  # --- BACKEND 2: REVIEW API ---
+  review_api:
+    build:
+      context: .
+      dockerfile: docker/review.Dockerfile # <-- UPDATED PATH
+    ports:
+      - "50052:50052"
+    environment:
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+    networks:
+      - cafe-network
+
+  # --- BACKEND 3: RESERVATION API ---
+  reservation_api:
+    build:
+      context: .
+      dockerfile: docker/reservation.Dockerfile # <-- UPDATED PATH
+    ports:
+      - "50053:50053"
+    environment:
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+    networks:
+      - cafe-network
+
+  # --- FRONTEND: VIEW NODE ---
+  view_node:
+    build:
+      context: .
+      dockerfile: docker/view.Dockerfile # <-- UPDATED PATH
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+      - JWT_SECRET=${JWT_SECRET}
+      # This still uses the service names, not IPs
+      - CORE_GRPC_ADDRESS=core_api:50051
+      - REVIEW_GRPC_ADDRESS=review_api:50052
+      - RESERVATION_GRPC_ADDRESS=reservation_api:50053
+    depends_on:
+      - core_api
+      - review_api
+      - reservation_api
+    networks:
+      - cafe-network
+
+networks:
+  cafe-network:
+    driver: bridge
