@@ -1,42 +1,84 @@
+// controllers/reviewController.js
 const reviewModel = require('../models/review.js');
 
-// Get Reviews
-exports.getReviews = async (req, res) => {
-  try {
-    let query = {};
-    if (req.query.cafe) query.cafe = req.query.cafe;
-    if (req.query.username) query.username = req.query.username;
+// Helper to map Mongoose Document to Proto Message
+const mapReview = (doc) => ({
+  _id: doc._id.toString(),
+  username: doc.username,
+  cafe_id: doc.cafe_id,
+  cafe: doc.cafe,
+  rating: doc.rating,
+  comment: doc.comment,
+  date: doc.date ? doc.date.toString() : new Date().toISOString(),
+  isEdited: doc.isEdited || false
+});
 
-    // Search reviews by content or author
-    if (req.query.search) {
-      const regex = new RegExp(req.query.search, 'i');
-      query.$or = [{ comment: regex }, { username: regex }];
-    }
+// 1. Get Reviews
+exports.getReviews = async (call, callback) => {
+  try {
+    const { cafe_name, username } = call.request;
+    let query = {};
+
+    if (cafe_name) query.cafe = cafe_name;
+    if (username) query.username = username;
 
     const reviews = await reviewModel.find(query).lean();
-    res.json(reviews);
+    const mappedReviews = reviews.map(mapReview);
+
+    callback(null, { reviews: mappedReviews });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error getting reviews:", err);
+    callback(null, { reviews: [] });
   }
 };
 
-// Add Review
-exports.addReview = async (req, res) => {
+// 2. Add Review
+exports.addReview = async (call, callback) => {
   try {
-    const newReview = new reviewModel(req.body);
+    const data = call.request;
+    const newReview = new reviewModel({
+      username: data.username,
+      cafe_id: data.cafe_id,
+      cafe: data.cafe,
+      rating: data.rating,
+      comment: data.comment,
+      date: data.date,
+      isEdited: false
+    });
+
     await newReview.save();
-    res.json({ status: 'success' });
+    callback(null, { status: 'success' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error adding review:", err);
+    callback(null, { status: 'error', error: err.message });
   }
 };
 
-// Delete Review
-exports.deleteReview = async (req, res) => {
+// 3. Delete Review
+exports.deleteReview = async (call, callback) => {
   try {
-    const deleted = await reviewModel.findByIdAndDelete(req.params.id);
-    res.json(deleted);
+    const { id } = call.request;
+    await reviewModel.findByIdAndDelete(id);
+    callback(null, { status: 'success' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error deleting review:", err);
+    callback(null, { status: 'error', error: err.message });
+  }
+};
+
+// 4. Edit Review
+exports.editReview = async (call, callback) => {
+  try {
+    const { id, rating, comment } = call.request;
+
+    await reviewModel.findByIdAndUpdate(id, {
+      rating: rating,
+      comment: comment,
+      isEdited: true
+    });
+    callback(null, { status: 'success' });
+  } catch (err) {
+    console.error("Error editing review:", err);
+    callback(null, { status: 'error', error: err.message });
   }
 };

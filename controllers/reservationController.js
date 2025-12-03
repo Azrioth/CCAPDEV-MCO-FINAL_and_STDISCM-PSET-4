@@ -1,92 +1,70 @@
+// controllers/reservationController.js
 const reservationModel = require('../models/reservations.js');
-// const cafeModel = require('../models/cafe.js');
+const mongoose = require('mongoose');
 
-exports.createReservation = async (req, res) => {
+// Helper to map Mongoose doc to Proto message
+const mapToProto = (doc) => ({
+  _id: doc._id.toString(),
+  username: doc.username,
+  cafe_id: doc.cafe_id,
+  cafe_name: doc.cafe_name,
+  date: doc.date ? doc.date.toString() : new Date().toISOString(),
+  status: doc.status || 'pending'
+});
+
+exports.makeReservation = async (call, callback) => {
   try {
+    const { username, cafe_id, cafe_name } = call.request;
     const newRes = new reservationModel({
-      username: req.body.username,
-      cafe_id: req.body.cafe_id,
-      cafe_name: req.body.cafe_name
+      username,
+      cafe_id,
+      cafe_name,
+      status: 'pending',
+      date: new Date()
     });
     await newRes.save();
-    res.json({ status: 'success' });
+
+    callback(null, { status: 'success' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    callback(null, { status: 'error', error: err.message });
   }
 };
 
-// 2. Get User's Own Reservations (Student Views Grades)
-exports.getUserReservations = async (req, res) => {
+exports.getUserReservations = async (call, callback) => {
   try {
-    const reservations = await reservationModel.find({ username: req.params.username }).lean();
-    res.json(reservations);
+    const username = call.request.username;
+    const data = await reservationModel.find({ username }).lean();
+    const mapped = data.map(mapToProto);
+    callback(null, { reservations: mapped });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    callback(null, { reservations: [] });
   }
 };
 
-// 3. Get Reservations for Owners (Faculty Views Class List)
-// This finds all reservations made to cafes that exist in the owner's "cafes" list
-exports.getOwnerReservations = async (req, res) => {
+exports.getOwnerReservations = async (call, callback) => {
   try {
-    const cafesOwned = req.query.cafes ? req.query.cafes.split(',') : [];
+    const cafes = call.request.cafes || [];
+    if (cafes.length === 0) return callback(null, { reservations: [] });
 
-    if (cafesOwned.length === 0) {
-      return res.json([]);
-    }
-
-    // Find reservations
-    const reservations = await reservationModel.find({
-      cafe_name: { $in: cafesOwned }
-    }).lean();
-
-    // === CRITICAL FIX: Ensure _id is a string ===
-    // This mapping operation ensures the _id property is definitely a string.
-    const sanitizedReservations = reservations.map(r => ({
-      ...r,
-      // .toString() on ObjectId is the required step to pass it to the view
-      _id: r._id.toString()
-    }));
-    // ===========================================
-
-    // Change this line to send the sanitized data
-    res.json(sanitizedReservations); //
-
+    const data = await reservationModel.find({ cafe_name: { $in: cafes } }).lean();
+    const mapped = data.map(mapToProto);
+    callback(null, { reservations: mapped });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    callback(null, { reservations: [] });
   }
 };
 
-// 4. Update Status (Faculty Uploads Grades)
-exports.updateStatus = async (req, res) => {
+exports.updateStatus = async (call, callback) => {
   try {
-    // CRITICAL FIX: Using explicit variable assignment instead of destructuring
-    // to ensure robustness against potential parsing issues.
-    const reservationId = req.body.reservation_id;
-    const newStatus = req.body.status;
+    const { reservation_id, status } = call.request;
 
-    if (!reservationId) {
-      return res.status(400).json({ error: 'Reservation ID is required.' });
-    }
-
-    if (!newStatus) {
-      return res.status(400).json({ error: 'Status is required.' });
-    }
-
-    const updatedRes = await reservationModel.findByIdAndUpdate(
-      reservationId,
-      { status: newStatus },
+    await reservationModel.findByIdAndUpdate(
+      reservation_id,
+      { status: status },
       { new: true }
     );
-
-    if (!updatedRes) {
-      return res.status(404).json({ error: 'Reservation not found.' });
-    }
-
-    res.json({ status: 'success', reservation: updatedRes });
-
+    callback(null, { status: 'success' });
   } catch (err) {
-    console.error("Error in updateStatus:", err);
-    res.status(500).json({ error: err.message });
+    callback(null, { status: 'error', error: err.message });
   }
 };

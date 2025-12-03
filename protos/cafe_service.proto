@@ -2,42 +2,151 @@ syntax = "proto3";
 
 package cafe_service;
 
-// --- Message Definitions ---
+// --- SHARED MESSAGES ---
+message Empty {}
 
-// A message representing a single Cafe entry
-message Cafe {
-  int32 id = 1;
-  string name = 2;
-  string description = 3;
-  float rating = 4;
+message ResponseStatus {
+  string status = 1; // "success" or "error"
+  string message = 2;
+  string error = 3;
 }
 
-// Request to get a specific cafe by ID
-message GetCafeRequest { int32 cafe_id = 1; }
+// --- AUTH & USER MESSAGES ---
+message User {
+  string username = 1;
+  string email = 2;
+  repeated string cafes = 3;
+  string desc = 4;
+  string profile_pic = 5;
+  string token = 6;
+}
 
-// Request to create a new reservation
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  string email = 3;
+}
+
+message UpdateProfileRequest {
+  string username = 1;
+  string desc = 2;
+  string profile_pic = 3;
+  string password = 4;
+}
+
+// --- CAFE MESSAGES ---
+message Cafe {
+  string _id = 1;
+  string name = 2;
+  string bio = 3;
+  string dti = 4;
+  string image = 5;
+  string price_range = 6;
+  string address = 7;
+  repeated string items = 8;
+  string owner = 9;
+}
+
+message CreateCafeRequest {
+  string name = 1;
+  string bio = 2;
+  string dti = 3;
+  string image = 4;
+  string price_range = 5;
+  string address = 6;
+  repeated string items = 7;
+  string owner = 8;
+}
+
+message GetCafeRequest { string cafe_id = 1; }
+message CafeList { repeated Cafe cafes = 1; }
+message SearchCafeRequest { string search = 1; }
+
+// --- REVIEW MESSAGES ---
+message Review {
+  string _id = 1;
+  string username = 2;
+  string cafe_id = 3;
+  string cafe = 4; // cafe name
+  int32 rating = 5;
+  string comment = 6;
+  string date = 7;
+  bool isEdited = 8;
+}
+
+message AddReviewRequest {
+  string username = 1;
+  string cafe_id = 2;
+  string cafe = 3;
+  int32 rating = 4;
+  string comment = 5;
+  string date = 6;
+}
+
+message ReviewList { repeated Review reviews = 1; }
+message GetReviewsRequest {
+  string cafe_name = 1;
+  string username = 2;
+}
+message DeleteReviewRequest { string id = 1; }
+message EditReviewRequest {
+  string id = 1;
+  int32 rating = 2;
+  string comment = 3;
+}
+
+// --- RESERVATION MESSAGES ---
+message Reservation {
+  string _id = 1;
+  string username = 2;
+  string cafe_id = 3;
+  string cafe_name = 4;
+  string date = 5;
+  string status = 6;
+}
+
 message CreateReservationRequest {
   string username = 1;
   string cafe_id = 2;
   string cafe_name = 3;
-  // e.g., "2025-12-01T14:30:00Z"
 }
 
-// Response for a reservation creation
-message ReservationResponse {
-  string status = 1; // "SUCCESS" or "FAILED"
-  string reservation_id = 2;
-  string error_message = 3;
+message ReservationList { repeated Reservation reservations = 1; }
+message UserResRequest { string username = 1; }
+message OwnerResRequest { repeated string cafes = 1; }
+message UpdateStatusRequest {
+  string reservation_id = 1;
+  string status = 2;
 }
 
-// --- Service Definition ---
+// --- SERVICES ---
 
-// The main service contract
-service CafeReviewService {
-  // Simple unary RPC to retrieve a single cafe
-  rpc GetCafe(GetCafeRequest) returns (GetCafeResponse);
+service CoreService {
+  rpc Login(LoginRequest) returns (User);
+  rpc Register(RegisterRequest) returns (ResponseStatus);
+  rpc GetUserProfile(UserResRequest) returns (User);
+  rpc UpdateUserProfile(UpdateProfileRequest) returns (ResponseStatus);
 
-  // Unary RPC to make a reservation
-  rpc MakeReservation(CreateReservationRequest)
-      returns (MakeReservationResponse);
+  rpc CreateCafe(CreateCafeRequest) returns (ResponseStatus);
+  rpc GetCafes(SearchCafeRequest) returns (CafeList);
+  rpc GetCafeById(GetCafeRequest) returns (Cafe);
+}
+
+service ReviewService {
+  rpc GetReviews(GetReviewsRequest) returns (ReviewList);
+  rpc AddReview(AddReviewRequest) returns (ResponseStatus);
+  rpc DeleteReview(DeleteReviewRequest) returns (ResponseStatus);
+  rpc EditReview(EditReviewRequest) returns (ResponseStatus);
+}
+
+service ReservationService {
+  rpc MakeReservation(CreateReservationRequest) returns (ResponseStatus);
+  rpc GetUserReservations(UserResRequest) returns (ReservationList);
+  rpc GetOwnerReservations(OwnerResRequest) returns (ReservationList);
+  rpc UpdateStatus(UpdateStatusRequest) returns (ResponseStatus);
 }

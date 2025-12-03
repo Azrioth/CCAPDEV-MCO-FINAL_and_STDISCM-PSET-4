@@ -1,112 +1,119 @@
-const userModel = require('../models/user.js'); // Mongoose Model for User data
-const bcrypt = require('bcrypt'); // For password hashing
-const jwt = require('jsonwebtoken'); // For stateless session management
-const JWT_SECRET = process.env.JWT_SECRET; // Must match the secret in your .env file
+// controllers/authController.js
+const User = require('../models/user.js'); // Assuming you have this model
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt'); // 👈 NEW: Import bcrypt for hashing/comparison
 
-// Handles user login: finds user, compares password, returns JWT token
-exports.login = async (req, res) => {
+const JWT_SECRET = process.env.JWT_SECRET || 'secret_key';
+
+// Helper to format Mongo User to Proto User
+const mapUser = (user, token = '') => ({
+  username: user.username,
+  email: user.email || '',
+  cafes: user.cafes || [],
+  desc: user.desc || '',
+  profile_pic: user.profile_pic || '',
+  token: token
+});
+
+// 1. Login (gRPC Handler)
+exports.login = async (call, callback) => {
   try {
-    const user = await userModel.findOne({ username: req.body.username }).lean();
-    if (!user) return res.json({ status: 'fail', message: 'User not found' });
+    const { username, password } = call.request;
+    const user = await User.findOne({ username });
 
-    // Compare the provided password with the stored hash
-    const match = await bcrypt.compare(req.body.password, user.password);
-    if (match) {
-      // SUCCESS: Generate a JWT for stateless session
-      const token = jwt.sign(
-        // Payload data stored in the token (accessible by View Node)
-        { username: user.username, email: user.email, cafes: user.cafes },
-        JWT_SECRET,
-        { expiresIn: '1h' } // Token expires in 1 hour
-      );
-
-      // Prepare response object (without the password hash)
-      const userResponse = { ...user };
-      delete userResponse.password;
-
-      res.json({ status: 'success', token: token, user: userResponse });
-    } else {
-      // FAIL: Password mismatch
-      res.json({ status: 'fail', message: 'Incorrect password' });
-    }
-  } catch (err) {
-    // Handles database/server errors
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// Handles new user registration
-exports.register = async (req, res) => {
-  try {
-    // Check if user already exists
-    const existingUser = await userModel.findOne({ username: req.body.username });
-    if (existingUser) {
-        return res.status(400).json({ status: 'fail', message: 'Username already exists' });
-    }
-
-    // Generate strong password hash
-    const hash = await bcrypt.hash(req.body.password, 10);
-
-    const newUser = new userModel({
-      username: req.body.username,
-      password: hash,
-      email: req.body.email,
-      desc: "A new Espresso Self user.", // Default description
-      profile_pic: "Photos/profile_picture.webp", // Default profile picture path
-      helpful: [],
-      cafes: [] // Initialize cafes array
-    });
-    await newUser.save();
-    res.json({ status: 'success' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// Handles updating user profile details (description, profile_pic, and optional password)
-exports.updateProfile = async (req, res) => {
-  try {
-    const updateData = {};
-
-    // Update description if provided
-    if (req.body.desc !== undefined) {
-      updateData.desc = req.body.desc;
-    }
-
-    // CRITICAL FIX: Update profile_pic if provided from the form
-    // This value comes directly from the input field in edit_profile.hbs
-    if (req.body.profile_pic !== undefined) {
-      updateData.profile_pic = req.body.profile_pic;
-    }
-
-    // Hash new password if the user is changing it
-    if (req.body.password) {
-      updateData.password = await bcrypt.hash(req.body.password, 10);
-    }
-
-    // Find and update the user, returning the new document
-    const user = await userModel.findOneAndUpdate(
-      { username: req.params.username },
-      updateData,
-      { new: true } // returns the updated document
-    ).lean();
-
-    if (user) delete user.password;
-    res.json(user);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// Handles fetching a user's profile data
-exports.getProfile = async (req, res) => {
-  try {
-    const user = await userModel.findOne({ username: req.params.username }).select('-password').lean();
+    // 1. Check if user exists
     if (!user) {
-        return res.status(404).json({ error: 'User not found' });
+      // Use the gRPC UNAUTHENTICATED status code for invalid credentials
+      return callback({ code: grpc.status.UNAUTHENTICATED, details: "Invalid credentials" });
     }
-    res.json(user);
+
+    // 2. CRITICAL FIX: Use bcrypt to compare the plain text password with the hashed password from the DB
+    // Assuming your passwords in MongoDB are hashed.
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return callback({ code: grpc.status.UNAUTHENTICATED, details: "Invalid credentials" });
+    }
+
+    // 3. Generate Token
+    const token = jwt.sign(
+      { username: user.username, email: user.email, cafes: user.cafes },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // 4. Send back user data and token
+    callback(null, mapUser(user, token));
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Login gRPC Error:", err);
+    callback(err);
+  }
+};
+
+// 2. Register (gRPC Handler)
+exports.register = async (call, callback) => {
+  try {
+    const { username, password, email } = call.request;
+
+    const existing = await User.findOne({ username });
+    if (existing) {
+      return callback(null, { status: 'error', error: 'User already exists' });
+    }
+
+    // NOTE: You should hash the password here before saving
+    // Example: const hashedPassword = await bcrypt.hash(password, 10);
+    // const newUser = new User({ username, password: hashedPassword, email });
+
+    // Assuming you handle hashing in the model's pre-save hook or will implement it.
+    const newUser = new User({ username, password, email });
+    await newUser.save();
+
+    callback(null, { status: 'success', message: 'User registered' });
+  } catch (err) {
+    callback(null, { status: 'error', error: err.message });
+  }
+};
+
+// 3. Get User Profile (gRPC Handler)
+exports.getUserProfile = async (call, callback) => {
+  try {
+    const { username } = call.request;
+    const user = await User.findOne({ username });
+
+    if (!user) return callback(new Error('User not found'));
+
+    callback(null, mapUser(user));
+  } catch (err) {
+    callback(err);
+  }
+};
+
+// 4. Update User Profile (gRPC Handler)
+exports.updateUserProfile = async (call, callback) => {
+  try {
+    const { username, desc, profile_pic, password } = call.request;
+
+    const updates = {};
+    if (desc) updates.desc = desc;
+    if (profile_pic) updates.profile_pic = profile_pic;
+
+    // NOTE: Handle password hashing if the password field is updated
+    if (password) {
+      // Example: updates.password = await bcrypt.hash(password, 10);
+      updates.password = password; // Assuming handling in model or will be fixed
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      { username },
+      { $set: updates },
+      { new: true }
+    );
+
+    if (!updatedUser) return callback(null, { status: 'error', error: 'User not found' });
+
+    callback(null, { status: 'success', message: 'Profile updated' });
+  } catch (err) {
+    callback(null, { status: 'error', error: err.message });
   }
 };

@@ -1,31 +1,42 @@
 // Run this on Port 3002
+// reviewnode.js
+// reviewnode.js (gRPC Server Version)
+// reviewnode.js (gRPC Server Version - Port 50052)
 require('dotenv').config();
-const express = require('express');
 const mongoose = require('mongoose');
+const grpc = require('@grpc/grpc-js');
+const protoLoader = require('@grpc/proto-loader');
+const path = require('path');
 
-// Import ONLY Review Controller
 const reviewController = require('./controllers/reviewController.js');
 
-const server = express();
-const PORT = process.env.REVIEW_API_PORT || 3002;
 const DB_URI = process.env.DB_CONNECTION_STRING;
+const GRPC_PORT = '0.0.0.0:50052';
+// FIX: Ensure 'protos' folder is in path
+const PROTO_PATH = path.join(__dirname, 'protos', 'cafe_service.proto');
 
-server.use(express.json());
-server.use(express.urlencoded({ extended: true }));
-
+// Connect to MongoDB
 mongoose.connect(DB_URI)
   .then(() => console.log('REVIEW API: Connected to MongoDB'))
   .catch(err => console.error('REVIEW API: DB Error', err));
 
-const apiRouter = express.Router();
+// Load Protobuf
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
+});
+const cafeProto = grpc.loadPackageDefinition(packageDefinition).cafe_service;
 
-// --- Review Routes ---
-apiRouter.get('/reviews', reviewController.getReviews);
-apiRouter.post('/review', reviewController.addReview);
-apiRouter.delete('/review/:id', reviewController.deleteReview);
+// Start gRPC Server
+const server = new grpc.Server();
 
-server.use('/api', apiRouter);
+server.addService(cafeProto.ReviewService.service, {
+  GetReviews: reviewController.getReviews,
+  AddReview: reviewController.addReview,
+  DeleteReview: reviewController.deleteReview,
+  EditReview: reviewController.editReview
+});
 
-server.listen(PORT, () => {
-  console.log(`REVIEW API running on port ${PORT}`);
+server.bindAsync(GRPC_PORT, grpc.ServerCredentials.createInsecure(), (err, port) => {
+  if (err) console.error(err);
+  else console.log(`REVIEW gRPC Service running on ${GRPC_PORT}`);
 });

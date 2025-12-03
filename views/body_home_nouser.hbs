@@ -4,15 +4,15 @@
       <div class="cafe">
         {{#each cafe}}
         <div class="cafe-item">
-          <a href="cafe1?cafe_id={{cafe_id}}">
+          <a href="cafe1?cafe_id={{this._id}}">
             <div class="cafe-image">
-              <img src="{{image_name}}" />
+              <img src="{{this.image}}" />
             </div>
           </a>
           <div class="cafe-details">
             <span class="cafe-name">
               <h3>{{name}}</h3>
-              <h5>{{rating}}/5</h5>
+              <!-- <h5>{{rating}}/5</h5> -->
             </span>
             <h4>{{address}}</h4>
             <h4>{{price_range}}</h4>

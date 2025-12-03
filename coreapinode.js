@@ -1,38 +1,48 @@
-// Run this on Port 3001
+// coreapinode.js (gRPC Server Version - Port 50051)
 require('dotenv').config();
-const express = require('express');
 const mongoose = require('mongoose');
+const grpc = require('@grpc/grpc-js');
+const protoLoader = require('@grpc/proto-loader');
+const path = require('path');
 
-// Import ONLY Core Controllers
 const authController = require('./controllers/authController.js');
 const cafeController = require('./controllers/cafeController.js');
 
-const server = express();
-const PORT = process.env.CORE_API_PORT || 3001;
 const DB_URI = process.env.DB_CONNECTION_STRING;
+const GRPC_PORT = '0.0.0.0:50051';
+const PROTO_PATH = path.join(__dirname, 'protos', 'cafe_service.proto');
 
-server.use(express.json());
-server.use(express.urlencoded({ extended: true }));
-
+// Connect to MongoDB
 mongoose.connect(DB_URI)
   .then(() => console.log('CORE API: Connected to MongoDB'))
   .catch(err => console.error('CORE API: DB Error', err));
 
-const apiRouter = express.Router();
+// Load Protobuf
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true, longs: String, enums: String, defaults: true, oneofs: true
+});
+const cafeProto = grpc.loadPackageDefinition(packageDefinition).cafe_service;
 
-// --- Auth Routes ---
-apiRouter.post('/login', authController.login);
-apiRouter.post('/register', authController.register);
-apiRouter.get('/user/:username', authController.getProfile);
-apiRouter.put('/user/:username', authController.updateProfile);
+// Start gRPC Server
+const server = new grpc.Server();
 
-// --- Cafe Routes ---
-apiRouter.get('/cafes', cafeController.getCafes);
-apiRouter.get('/cafe/:id', cafeController.getCafeById);
-apiRouter.post('/add-cafe', cafeController.createCafe);
+// Add the CoreService methods
+server.addService(cafeProto.CoreService.service, {
+  Login: authController.login,
+  Register: authController.register,
+  // FIX: Use correct exported function names
+  GetUserProfile: authController.getUserProfile,
+  UpdateUserProfile: authController.updateUserProfile,
 
-server.use('/api', apiRouter);
+  GetCafes: cafeController.getCafes,
+  GetCafeById: cafeController.getCafeById,
+  CreateCafe: cafeController.createCafe,
+});
 
-server.listen(PORT, () => {
-  console.log(`CORE API running on port ${PORT}`);
+server.bindAsync(GRPC_PORT, grpc.ServerCredentials.createInsecure(), (err, port) => {
+  if (err) {
+    console.error("Failed to bind server:", err);
+    return;
+  }
+  console.log(`CORE gRPC API running on ${GRPC_PORT}`);
 });

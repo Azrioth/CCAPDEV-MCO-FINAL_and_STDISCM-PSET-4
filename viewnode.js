@@ -1,51 +1,49 @@
 //Install Commands:
 //npm init
 //npm i express express-handlebars body-parser mongoose express-validator bcrypt
+// viewnode.js
 require('dotenv').config();
 const express = require('express');
 const handlebars = require('express-handlebars');
-const axios = require('axios');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const grpc = require('@grpc/grpc-js');
+const protoLoader = require('@grpc/proto-loader');
+
 const server = express();
-
-// --- CONFIGURATION ---
 const PORT = process.env.VIEW_PORT || 3000;
-// const API_URL = process.env.API_BASE_URL; // Removed
-const CORE_API_URL = process.env.CORE_API_URL;
-const REVIEW_API_URL = process.env.REVIEW_API_URL;
-const RESERVATION_API_URL = process.env.RESERVATION_API_URL;
-
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// --- UTILITY FUNCTION: API Fetch Wrapper ---
-// REFACTORED: Now accepts the full base URL (e.g., CORE_API_URL) as the first argument
-const fetchAPI = async (baseURL, method, path, body = null, queryParams = {}) => {
-  try {
-    const url = new URL(`${baseURL}${path}`);
-    Object.keys(queryParams).forEach(key => url.searchParams.append(key, queryParams[key]));
+// --- gRPC CONFIGURATION ---
+const PROTO_PATH = path.join(__dirname, 'protos', 'cafe_service.proto');
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
+const cafeProto = grpc.loadPackageDefinition(packageDefinition).cafe_service;
 
-    const config = {
-      method: method.toUpperCase(),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    };
+// Connect to Microservices (Ports must match the server files)
+const coreClient = new cafeProto.CoreService('localhost:50051', grpc.credentials.createInsecure());
+const reviewClient = new cafeProto.ReviewService('localhost:50052', grpc.credentials.createInsecure());
+const reservationClient = new cafeProto.ReservationService('localhost:50053', grpc.credentials.createInsecure());
 
-    if (body) {
-      config.data = body;
-    }
-
-    const response = await axios(url.toString(), config);
-    return response;
-  } catch (error) {
-    console.error(`API Error on ${method} ${path}:`, error.message, error.response?.data);
-    return {
-      status: error.response?.status || 500,
-      data: { error: error.response?.data?.error || 'An API error occurred' }
-    };
-  }
+// --- HELPER: Promisify gRPC Calls ---
+const grpcCall = (client, method, payload = {}) => {
+  return new Promise((resolve, reject) => {
+    client[method](payload, (err, response) => {
+      if (err) {
+        // Handle gRPC specific errors nicely
+        console.error(`gRPC Error [${method}]:`, err);
+        resolve({ error: err.message, status: 'error' }); // Resolve to avoid crashing, but pass error
+      } else {
+        resolve(response);
+      }
+    });
+  });
 };
 
 // --- MIDDLEWARE ---
@@ -54,7 +52,6 @@ server.use(express.json());
 server.use(express.urlencoded({ extended: true }));
 server.use(cookieParser());
 
-// --- HANDLEBARS SETUP ---
 server.set('view engine', 'hbs');
 server.engine('hbs', handlebars.engine({
   extname: 'hbs',
@@ -70,12 +67,11 @@ server.engine('hbs', handlebars.engine({
   }
 }));
 
-// --- AUTH MIDDLEWARE (STATELESS) ---
+// --- AUTH MIDDLEWARE ---
 server.use((req, res, next) => {
   const token = req.cookies.auth_token;
   res.locals.loggedIn = false;
   res.locals.user = null;
-
   if (token) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
@@ -89,310 +85,126 @@ server.use((req, res, next) => {
   next();
 });
 
-// 1. Initial Routes
+// --- ROUTES ---
+
+// 1. HOME
 server.get('/', (req, res) => {
-  if (res.locals.loggedIn) {
-    res.redirect('/body_home_user');
-  } else {
-    res.redirect('/body_home_nouser');
-  }
+  const target = res.locals.loggedIn ? '/body_home_user' : '/body_home_nouser';
+  res.redirect(target);
 });
 
 server.get('/body_home_user', async (req, res) => {
-  const result = await fetchAPI(CORE_API_URL, 'get', '/cafes');
-  res.render('body_home_user', { layout: 'index', cafe: result.data });
+  const result = await grpcCall(coreClient, 'GetCafes', { search: "" });
+  res.render('body_home_user', { layout: 'index', cafe: result.cafes });
 });
 
 server.get('/body_home_nouser', async (req, res) => {
-  const result = await fetchAPI(CORE_API_URL, 'get', '/cafes');
-  res.render('body_home_nouser', { layout: 'index', cafe: result.data });
+  const result = await grpcCall(coreClient, 'GetCafes', { search: "" });
+  res.render('body_home_nouser', { layout: 'index', cafe: result.cafes });
 });
 
-// 2. Auth Routes
+// 2. AUTH
 server.get('/login', (req, res) => res.render('login', { layout: 'loginIndex' }));
 server.get('/register', (req, res) => res.render('register', { layout: 'loginIndex' }));
-
 server.post('/logout', (req, res) => {
   res.clearCookie('auth_token');
   res.redirect('/body_home_nouser');
 });
 
 server.post('/body_home_user', async (req, res) => {
-  const result = await fetchAPI(CORE_API_URL, 'post', '/login', { username: req.body.user, password: req.body.pass });
+  // NOTE: This route handler is only hit when the login form (action="/body_home_user") is submitted.
+  const result = await grpcCall(coreClient, 'Login', { username: req.body.user, password: req.body.pass });
 
-  if (result.data.token) {
-    // Token expires in 1 hour
-    res.cookie('auth_token', result.data.token, { httpOnly: true, maxAge: 3600000 });
-    res.redirect('/body_home_user');
+  if (result.token) {
+    // 1. Set the token cookie
+    res.cookie('auth_token', result.token, { httpOnly: true, maxAge: 3600000 });
+
+    // 2. SUCCESS: Redirect to the HOME route (/), which then uses the Auth middleware 
+    // to choose between /body_home_user or /body_home_nouser.
+    // This is cleaner than redirecting directly to /body_home_user.
+    res.redirect('/');
   } else {
-    res.render('login', { layout: 'index', error: result.data.message || 'Login failed.' });
+    // FAILURE: Render login page again with error message
+    res.render('login', { layout: 'loginIndex', error: 'Login failed.' });
   }
 });
-
 server.post('/submitForm', async (req, res) => {
-  if (req.body.inputPassword !== req.body.verify) {
-    return res.render('register', { layout: 'index', error: 'Passwords do not match.' });
-  }
+  if (req.body.inputPassword !== req.body.verify) return res.render('register', { error: 'Mismatch passwords' });
 
-  const payload = {
+  const result = await grpcCall(coreClient, 'Register', {
     username: req.body.inputUsername,
     password: req.body.inputPassword,
     email: req.body.inputEmail
-  };
-
-  const result = await fetchAPI(CORE_API_URL, 'post', '/register', payload);
-
-  if (result.status === 200 || result.status === 201) {
-    res.redirect('/login');
-  } else {
-    res.render('register', { layout: 'index', error: result.data.error || 'Registration failed.' });
-  }
-});
-
-// 3. Cafe Routes
-server.post('/add-cafe', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-
-  const payload = {
-    name: req.body.name,
-    bio: req.body.bio,
-    dti: req.body.dti,
-    image: req.body.image,
-    price_range: req.body.price_range,
-    address: req.body.address,
-    items: req.body.items ? req.body.items.split(',').map(item => item.trim()) : [],
-    owner: res.locals.user.username
-  };
-
-  const result = await fetchAPI(CORE_API_URL, 'post', '/add-cafe', payload);
-
-  if (result.status === 200 || result.status === 201) {
-    res.redirect(`/cafe1_user?cafe_id=${result.data.cafe_id}`);
-  } else {
-    res.render('add_cafe', { layout: 'index', error: result.data.error || 'Failed to register cafe.' });
-  }
-});
-
-server.get('/add_cafe', (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-  res.render('add_cafe', { layout: 'index' });
-});
-
-server.get('/cafe1', async (req, res) => {
-  if (res.locals.loggedIn) {
-    return res.redirect(`/cafe1_user?cafe_id=${req.query.cafe_id}`);
-  }
-  const cafeId = req.query.cafe_id;
-  const cafeRes = await fetchAPI(CORE_API_URL, 'get', `/cafe/${cafeId}`);
-  // const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
-  const cafe = cafeRes.data || {};
-  const reviewsRes = await fetchAPI(REVIEW_API_URL, 'get', '/reviews', null, { cafe: cafe.name });
-  res.render('cafe1', {
-    layout: 'index',
-    cafe: cafeRes.data,
-    review: reviewsRes.data,
-    searchInputReview: ""
   });
+
+  if (result.status === 'success') res.redirect('/login');
+  else res.render('register', { error: result.error || 'Registration failed' });
 });
 
+// 3. CAFE
 server.get('/cafe1_user', async (req, res) => {
   if (!res.locals.loggedIn) return res.redirect('/login');
-
   const cafeId = req.query.cafe_id;
-  const cafeRes = await fetchAPI(CORE_API_URL, 'get', `/cafe/${cafeId}`);
-  // const reviewsRes = await fetchAPI('get', `/reviews?cafe_id=${cafeId}`);
-  const cafe = cafeRes.data || {};
-  const reviewsRes = await fetchAPI(REVIEW_API_URL, 'get', '/reviews', null, { cafe: cafe.name });
+
+  const cafeRes = await grpcCall(coreClient, 'GetCafeById', { cafe_id: cafeId });
+  // Note: Protocol buffers default to default values, so check if name exists to confirm found
+  const cafe = cafeRes.name ? cafeRes : {};
+
+  const reviewRes = await grpcCall(reviewClient, 'GetReviews', { cafe_name: cafe.name });
 
   const isOwner = res.locals.user.cafes && res.locals.user.cafes.includes(cafe.name);
 
   res.render('cafe1_user', {
     layout: 'index',
     cafe: cafe,
-    review: reviewsRes.data,
-    searchInputReview: "",
+    review: reviewRes.reviews || [],
     isOwner: isOwner
   });
 });
+server.get('/cafe1', async (req, res) => {
+  try {
+    const cafeId = req.query.cafe_id;
+    const searchQuery = req.query.search || '';
 
-// 4. Review Routes
-server.post('/submitReview', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
+    if (!cafeId) return res.redirect('/');
 
-  const payload = {
-    username: res.locals.user.username,
-    cafe_id: req.body.cafe_id,
-    cafe: req.body.cafe_name,
-    rating: req.body.input_rating,
-    comment: req.body.input_review_body,
-    date: new Date().toISOString().split('T')[0],
-  };
+    // 1. Fetch Cafe Details (Core API via gRPC)
+    const cafeRes = await grpcCall(coreClient, 'GetCafeById', { cafe_id: cafeId });
+    const cafeData = cafeRes;
 
-  await fetchAPI(REVIEW_API_URL, 'post', '/review', payload);
-  // Redirect back to the specific cafe page
-  res.redirect(`/cafe1_user?cafe_id=${req.body.cafe_id}`);
-});
+    if (!cafeData || !cafeData.name) {
+      return res.status(404).render('404', { layout: 'index', message: 'Cafe not found.' });
+    }
 
-server.post('/submitEditedReview', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-
-  const reviewId = req.query.id;
-  const payload = {
-    rating: req.body.input_rating,
-    comment: req.body.input_review_body,
-    isEdited: true
-  };
-
-  await fetchAPI(REVIEW_API_URL, 'patch', `/review/${reviewId}`, payload);
-  res.redirect('/profile_user');
-});
-
-server.post('/delete/:id', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-
-  const reviewId = req.params.id;
-  await fetchAPI(REVIEW_API_URL, 'delete', `/review/${reviewId}`);
-  res.redirect('/profile_user');
-});
-
-server.post('/helpful', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-  // Helpful logic here
-  res.redirect(req.headers.referer || '/body_home_user');
-});
-
-server.post('/respond-review', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-  // Owner response logic here
-  res.redirect(req.headers.referer || '/body_home_user');
-});
-
-// 5. Profile Routes
-server.get('/profile_user', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-
-  const username = req.query.username || res.locals.user.username;
-
-  const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
-  const reviewsRes = await fetchAPI(REVIEW_API_URL, 'get', `/reviews?username=${username}`);
-  const reservationRes = await fetchAPI(RESERVATION_API_URL, 'get', `/reservations/user/${username}`);
-
-  let ownerRequests = [];
-
-  if (res.locals.user.username === username &&
-    userRes.data.cafes &&
-    userRes.data.cafes.length > 0) {
-
-    const cafeList = userRes.data.cafes.join(',');
-    const ownerRes = await fetchAPI(RESERVATION_API_URL, 'get', '/reservations/owner', null, { cafes: cafeList });
-
-    // ⭐ ABSOLUTE FIX — ensure each object has an `_id`
-    // viewnode.js around line 290
-    // const ownerRes = await fetchAPI(RESERVATION_API_URL, 'get', '/reservations/owner', null, { cafes: cafeList });
-
-    // Check if ownerRes.data is an array before using .map()
-    // The data variable should be initialized to an empty array if not an array.
-    const ownerData = Array.isArray(ownerRes.data) ? ownerRes.data : [];
-
-    // Now map over the verified array
-    ownerRequests = ownerData.map(r => ({
-      ...r,
-      _id: r._id || r.id || r.reservation_id
-    }));
-    console.log("OWNER REQUESTS PASSED TO HBS:", ownerRequests);
-  }
-
-  res.render('profile_user', {
-    layout: 'index',
-    checkUser: userRes.data,
-    review: reviewsRes.data,
-    reservations: reservationRes.data,
-    ownerRequests: ownerRequests,
-    currentLoggedIn: res.locals.user.username === username
-  });
-});
-server.get('/edit_profile', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-  const username = req.query.username;
-
-  if (username !== res.locals.user.username) return res.redirect('/profile_user');
-
-  const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
-  res.render('edit_profile', { layout: 'index', user: userRes.data });
-});
-
-// 6. SUBMIT EDIT USER
-server.post('/submitEditUser', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-
-  const {
-    username,
-    input_desc,
-    input_profile_pic,
-    input_password,
-    confirm_password
-  } = req.body;
-
-  if (input_password && input_password !== confirm_password) {
-    const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
-    return res.render('edit_profile', {
-      layout: 'index',
-      user: userRes.data,
-      error: 'New passwords do not match.'
+    // 2. Fetch Reviews (Review API via gRPC)
+    // Use the cafe name as the query parameter for reviews
+    const reviewsRes = await grpcCall(reviewClient, 'GetReviews', {
+      cafe_name: cafeData.name,
+      // You can add search functionality here if the proto supports it
     });
-  }
 
-  const payload = {
-    desc: input_desc,
-    profile_pic: input_profile_pic
-  };
+    // --- CRITICAL FIX: Determine Template and Data ---
+    const isUser = res.locals.loggedIn;
+    // Render the user-specific template if logged in, otherwise the public one.
+    const templateName = isUser ? 'cafe1_user' : 'cafe1';
 
-  if (input_password) {
-    payload.password = input_password;
-  }
-
-  const result = await fetchAPI(CORE_API_URL, 'put', `/user/${username}`, payload);
-
-  if (result.status === 200) {
-    res.redirect(`/profile_user?username=${username}`);
-  } else {
-    const userRes = await fetchAPI(CORE_API_URL, 'get', `/user/${username}`);
-    res.render('edit_profile', {
+    // 3. Render the page
+    res.render(templateName, {
       layout: 'index',
-      user: userRes.data,
-      error: result.data.error || 'Profile update failed.'
+      // Data passed to both cafe1.hbs and cafe1_user.hbs
+      cafe: cafeData,
+      review: reviewsRes.reviews || [],
+      search: searchQuery,
+      isUser: isUser, // You can use this flag in the template if needed
+      user: res.locals.user || null // Pass user data for logged-in features
     });
+
+  } catch (err) {
+    console.error('Cafe Detail Route Error:', err.message);
+    res.status(500).render('error', { layout: 'index', message: 'Failed to load cafe details.' });
   }
 });
-
-// 7. Search & Reviews
-server.post('/search_cafe', (req, res) => res.redirect(`/?search=${req.body.searchInput}`));
-server.get('/search_cafe', async (req, res) => {
-  const result = await fetchAPI(CORE_API_URL, 'get', '/cafes', null, { search: req.query.searchInput });
-  const targetView = res.locals.loggedIn ? 'body_home_user' : 'body_home_nouser';
-  res.render(targetView, {
-    layout: 'index',
-    cafe: result.data,
-    searchInput: req.query.searchInput
-  });
-});
-
-server.post('/search_review', async (req, res) => {
-  const cafeId = req.query.cafe_id;
-  const searchInputReview = req.body.searchInputReview;
-  res.redirect(`/cafe1?cafe_id=${cafeId}&search=${searchInputReview}`);
-});
-
-server.post('/search_review_user', async (req, res) => {
-  const cafeId = req.query.cafe_id;
-  const searchInputReview = req.body.searchInputReview;
-  res.redirect(`/cafe1_user?cafe_id=${cafeId}&search=${searchInputReview}`);
-});
-
-
-// 8. Reservation Routes
-
-// Submit a Reservation Request
+// 4. RESERVATIONS (UPDATED to gRPC)
 server.post('/make-reservation', async (req, res) => {
   if (!res.locals.loggedIn) return res.redirect('/login');
 
@@ -402,29 +214,53 @@ server.post('/make-reservation', async (req, res) => {
     cafe_name: req.body.cafe_name
   };
 
-  await fetchAPI(RESERVATION_API_URL, 'post', '/reservations', payload);
-  res.redirect(`/profile_user`); // Redirect to profile to see status
+  await grpcCall(reservationClient, 'MakeReservation', payload);
+  res.redirect(`/profile_user`);
 });
 
-// FIXED: Renamed route from /update-reservation to /reservations/status
-// This aligns with the HTML form action in profile_user.hbs
 server.post('/reservations/status', async (req, res) => {
   if (!res.locals.loggedIn) return res.redirect('/login');
 
-  const { reservation_id, status } = req.body;
+  await grpcCall(reservationClient, 'UpdateStatus', {
+    reservation_id: req.body.reservation_id,
+    status: req.body.status
+  });
 
-  const payload = {
-    reservation_id: reservation_id,
-    status: status
-  };
-
-  await fetchAPI(RESERVATION_API_URL, 'post', '/reservations/status', payload);
-
-  // Redirect back to the profile page (Owner Dashboard)
   res.redirect(`/profile_user?username=${res.locals.user.username}`);
 });
 
-// 9. Server Start
+// 5. PROFILE
+server.get('/profile_user', async (req, res) => {
+  if (!res.locals.loggedIn) return res.redirect('/login');
+  const username = req.query.username || res.locals.user.username;
+
+  // Get User Data
+  const userRes = await grpcCall(coreClient, 'GetUserProfile', { username: username });
+
+  // Get Reviews made by User
+  const reviewsRes = await grpcCall(reviewClient, 'GetReviews', { username: username });
+
+  // Get Reservations made by User
+  const userReservations = await grpcCall(reservationClient, 'GetUserReservations', { username: username });
+
+  let ownerRequests = [];
+  // If viewing own profile and is an owner
+  if (res.locals.user.username === username && userRes.cafes && userRes.cafes.length > 0) {
+    const ownerRes = await grpcCall(reservationClient, 'GetOwnerReservations', { cafes: userRes.cafes });
+    ownerRequests = ownerRes.reservations || [];
+  }
+
+  res.render('profile_user', {
+    layout: 'index',
+    checkUser: userRes,
+    review: reviewsRes.reviews || [],
+    reservations: userReservations.reservations || [],
+    ownerRequests: ownerRequests,
+    currentLoggedIn: res.locals.user.username === username
+  });
+});
+
+// Start View Server
 server.listen(PORT, () => {
-  console.log(`View Server running on http://localhost:${PORT}`);
+  console.log(`VIEW SERVER running on http://localhost:${PORT}`);
 });

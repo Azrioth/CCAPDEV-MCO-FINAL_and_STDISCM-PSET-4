@@ -1,56 +1,97 @@
-const cafeModel = require('../models/cafe.js');
+// controllers/cafeController.js
+const Cafe = require('../models/cafe.js');
+const User = require('../models/user.js');
 
-// Get All Cafes (with Search)
-exports.getCafes = async (req, res) => {
+// Helper to map Mongo Cafe to Proto Cafe
+const mapCafe = (doc) => {
+  // Use the raw image name from the database (e.g., 'Cafe1_Starbucks.jpg')
+  let imageFileName = doc.image_name || '';
+
+  // 1. Sanitize the path: Remove any existing leading slashes or folder names
+  // This ensures we start with a clean file name.
+  imageFileName = imageFileName.split('/').pop();
+  imageFileName = imageFileName.trim();
+
+  // 2. Build the correct root-relative path using the guaranteed directory structure
+  let imagePath = '';
+  if (imageFileName) {
+    // CRITICAL FIX: Explicitly prepend the correct root folder path
+    // This is now guaranteed to output: /Photos/Cafe1_Starbucks.jpg
+    imagePath = `/Photos/${imageFileName}`;
+  }
+  // =================================================================
+
+  return {
+    _id: doc._id.toString(),
+    name: doc.name,
+    bio: doc.bio || '',
+    dti: doc.dti || '',
+    // Use the guaranteed correct path
+    image: imagePath,
+    price_range: doc.price_range || '',
+    address: doc.address || '',
+    items: doc.items || [],
+    owner: doc.owner || ''
+  };
+};
+exports.getCafes = async (call, callback) => {
   try {
+    const search = call.request.search;
     let query = {};
-    if (req.query.search) {
-      const regex = new RegExp(req.query.search, 'i');
-      query = { $or: [{ name: regex }, { description: regex }] };
+
+    if (search) {
+      query = { name: { $regex: search, $options: 'i' } };
     }
-    const cafes = await cafeModel.find(query).lean();
-    res.json(cafes);
+
+    const cafes = await Cafe.find(query).lean();
+    const cafeList = cafes.map(mapCafe);
+
+    callback(null, { cafes: cafeList });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    callback(err);
   }
 };
 
-// Get Single Cafe
-exports.getCafeById = async (req, res) => {
+exports.getCafeById = async (call, callback) => {
   try {
-    const cafe = await cafeModel.findOne({ cafe_id: parseInt(req.params.id) }).lean();
-    res.json(cafe);
+    const { cafe_id } = call.request;
+    const cafe = await Cafe.findById(cafe_id).lean();
+
+    if (!cafe) return callback(new Error("Cafe not found"));
+
+    callback(null, mapCafe(cafe));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    callback(err);
   }
 };
 
-exports.createCafe = async (req, res) => {
+exports.createCafe = async (call, callback) => {
   try {
-    // 1. Generate a simple numeric ID (since your schema uses Number for cafe_id)
-    // In a real app, you'd use UUID or let Mongo handle _id, but for this schema:
-    const count = await cafeModel.countDocuments();
-    const newId = count + 1;
+    const data = call.request;
 
-    // 2. Create the new Cafe object
-    const newCafe = new cafeModel({
-      name: req.body.name,
-      description: req.body.bio, // Mapping 'bio' from form to 'description' in schema
-      rating: 0, // Default rating
-      items: req.body.items,
-      owner: req.body.owner,
-      address: req.body.address,
-      price_range: req.body.price_range,
-      image_name: req.body.image, // Assuming URL or path provided
-      cafe_id: newId
+    // 1. Create Cafe - Save image as 'image_name' in DB
+    const newCafe = new Cafe({
+      name: data.name,
+      bio: data.bio,
+      dti: data.dti,
+      image_name: data.image, // Use image_name for DB field
+      price_range: data.price_range,
+      address: data.address,
+      items: data.items,
+      owner: data.owner
     });
 
-    // 3. Save to Database
-    await newCafe.save();
+    const savedCafe = await newCafe.save();
 
-    // 4. Return the new ID so frontend can redirect
-    res.json({ status: 'success', cafe_id: newId });
+    // 2. Update User (Owner) to include this cafe
+    await User.findOneAndUpdate(
+      { username: data.owner },
+      { $push: { cafes: savedCafe.name } }
+    );
+
+    callback(null, { status: 'success', message: savedCafe._id.toString() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    callback(null, { status: 'error', error: err.message });
   }
 };
