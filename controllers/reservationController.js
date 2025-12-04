@@ -4,24 +4,48 @@ const mongoose = require('mongoose');
 const dayjs = require('dayjs');
 
 // Helper to map Mongoose doc to Proto message
-const mapToProto = (doc) => ({
-  _id: doc._id.toString(),
-  username: doc.username,
-  cafe_id: doc.cafe_id,
-  cafe_name: doc.cafe_name,
-  date: doc.date ? doc.date.toString() : new Date().toISOString(),
-  status: doc.status || 'pending'
-});
+const mapToProto = (doc) => {
+  const originalDate = new Date(doc.date);
 
+  // 1. Calculate the New Date: Original Date + 7 days
+  const futureDate = new Date(originalDate);
+  // Set the date to 7 days from the original date
+  futureDate.setDate(originalDate.getDate() + 7);
+
+  // 2. Format the Date (e.g., "Wed Mar 06 2024")
+  const formattedDate = futureDate.toDateString();
+
+  // 3. Format the Time (e.g., "14:30:00")
+  // toLocaleTimeString with options gives HH:MM:SS without GMT/UTC/AM/PM
+  const hours = originalDate.getUTCHours().toString().padStart(2, '0');
+  const minutes = originalDate.getUTCMinutes().toString().padStart(2, '0');
+  const seconds = originalDate.getUTCSeconds().toString().padStart(2, '0');
+
+  const formattedTime = `${hours}:${minutes}:${seconds}`;
+  // Explicitly return the object
+  return {
+    _id: doc._id.toString(),
+    username: doc.username,
+    cafe_id: doc.cafe_id,
+    cafe_name: doc.cafe_name,
+    date: formattedDate, // Date is now +7 days
+    time: formattedTime, // Time is clean (HH:MM:SS)
+    notes: doc.notes || '',
+    status: doc.status || 'pending'
+  };
+};
 exports.makeReservation = async (call, callback) => {
   try {
-    const { username, cafe_id, cafe_name } = call.request;
+    // FIX: Include 'notes' in the destructuring
+    const { username, cafe_id, cafe_name, notes } = call.request;
+
     const newRes = new reservationModel({
       username,
       cafe_id,
-      cafe_name,
-      status: 'pending',
-      date: new Date()
+      cafe_name, // This is the field now being reliably populated
+      status: 'Pending',
+      date: new Date(),
+      notes: notes || '' // Ensure notes are saved
     });
     await newRes.save();
 

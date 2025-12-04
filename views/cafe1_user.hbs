@@ -8,7 +8,7 @@
 <div class="profile-bio-details">
 <h1>{{cafe.name}}</h1>
   <form action="/make-reservation" method="POST">
-        <input type="hidden" name="cafe_id" value="{{cafe.cafe_id}}">
+        <input type="hidden" name="cafe_id" value="{{cafe._id}}">
         <input type="hidden" name="cafe_name" value="{{cafe.name}}">
         <button class="header-profile-button" type="submit">Request Reservation</button>
     </form>
@@ -45,7 +45,7 @@
 <div class="profile-details-right-item">
 <a href="/profile_user?username={{username}}">
 <div class="profile-details-right-line">
-<img src="" />
+<img src={image} />
 <h3>{{username}}</h3>
 </div>
 </a>

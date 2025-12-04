@@ -35,7 +35,11 @@ const RESERVATION_GRPC_ADDRESS = process.env.RESERVATION_GRPC_ADDRESS || 'localh
 const coreClient = new cafeProto.CoreService(CORE_GRPC_ADDRESS, grpc.credentials.createInsecure());
 const reviewClient = new cafeProto.ReviewService(REVIEW_GRPC_ADDRESS, grpc.credentials.createInsecure());
 const reservationClient = new cafeProto.ReservationService(RESERVATION_GRPC_ADDRESS, grpc.credentials.createInsecure());
-
+const isValidObjectId = (id) => {
+  if (!id || typeof id !== 'string') return false;
+  // Checks for exactly 24 hexadecimal characters
+  return /^[0-9a-fA-F]{24}$/.test(id);
+};
 // --- HELPER: Promisify gRPC Calls ---
 const grpcCall = (client, method, payload = {}) => {
   return new Promise((resolve, reject) => {
@@ -148,23 +152,78 @@ server.post('/submitForm', async (req, res) => {
 
 // 3. CAFE
 server.get('/cafe1_user', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
+  // 1. Authentication Check
+  if (!res.locals.loggedIn) {
+    return res.redirect('/login');
+  }
+
   const cafeId = req.query.cafe_id;
 
-  const cafeRes = await grpcCall(coreClient, 'GetCafeById', { cafe_id: cafeId });
-  // Note: Protocol buffers default to default values, so check if name exists to confirm found
-  const cafe = cafeRes.name ? cafeRes : {};
+  // 2. Input Validation
+  // Assuming isValidObjectId is defined globally
+  if (!cafeId || !isValidObjectId(cafeId)) {
+    return res.status(400).render('body_home_user', { // <-- FIX
+      layout: 'index',
+      errorMessage: 'Invalid or missing cafe ID provided.'
+    });
+  }
 
-  const reviewRes = await grpcCall(reviewClient, 'GetReviews', { cafe_name: cafe.name });
+  try {
+    // 3. Fetch Cafe Details (Core Service)
+    const cafeRes = await grpcCall(coreClient, 'GetCafeById', {
+      cafe_id: cafeId
+    });
+    const cafe = cafeRes.cafe;
 
-  const isOwner = res.locals.user.cafes && res.locals.user.cafes.includes(cafe.name);
+    // The log shows: "gRPC Error [GetCafeById]: Error: 2 UNKNOWN: Cafe not found"
+    // This is handled here by checking if the cafe object exists/is valid.
+    if (!cafe || cafe.error) {
+      console.warn(`WARN: Cafe not found for ID ${cafeId}`);
+      // Render the home page with an error message
+      return res.status(404).render('body_home_user', { // <-- FIX
+        layout: 'index',
+        errorMessage: 'Cafe not found with the provided ID.'
+      });
+    }
 
-  res.render('cafe1_user', {
-    layout: 'index',
-    cafe: cafe,
-    review: reviewRes.reviews || [],
-    isOwner: isOwner
-  });
+    // 4. Fetch Reviews (Review Service)
+    const reviewsRes = await grpcCall(reviewClient, 'GetReviews', {
+      cafe_id: cafeId
+    });
+    let reviews = reviewsRes.reviews || [];
+
+    // 5. Augment Reviews with user-specific flags
+    const loggedInUsername = res.locals.user.username;
+    const userHelpfulArray = res.locals.user.helpful || [];
+    // Assuming cafe.name is an array of names for a single cafe, as seen in profile_user logic
+    const isOwnerOfCafe = res.locals.user.cafes && res.locals.user.cafes.includes(cafe.name);
+
+    reviews = reviews.map(review => ({
+      ...review,
+      isEditable: review.username === loggedInUsername,
+      isHelpful: userHelpfulArray.includes(review._id),
+      isOwner: isOwnerOfCafe,
+      dateFormatted: new Date(review.date).toLocaleDateString()
+    }));
+
+
+    // 6. Render Page (Success)
+    res.render('cafe1_user', {
+      layout: 'index',
+      cafe: cafe,
+      reviews: reviews,
+      user: res.locals.user,
+      loggedIn: res.locals.loggedIn
+    });
+
+  } catch (error) {
+    // 7. Generic Error Handling (Fallback to prevent 500 crashes)
+    console.error(`Fatal error loading cafe ${cafeId} for user:`, error.message);
+    res.status(500).render('body_home_user', { // <-- FIX
+      layout: 'index',
+      errorMessage: 'An internal error prevented the cafe details from loading.'
+    });
+  }
 });
 server.get('/cafe1', async (req, res) => {
   try {
@@ -236,66 +295,131 @@ server.post('/reservations/status', async (req, res) => {
 
 // 5. PROFILE
 server.get('/profile_user', async (req, res) => {
-  if (!res.locals.loggedIn) return res.redirect('/login');
-  const username = req.query.username || res.locals.user.username;
+  try {
+    if (!res.locals.loggedIn) return res.redirect("/login");
 
-  // Get User Data
-  const userRes = await grpcCall(coreClient, 'GetUserProfile', { username: username });
+    const username = req.query.username || res.locals.user.username;
 
-  // Get Reviews made by User
-  const reviewsRes = await grpcCall(reviewClient, 'GetReviews', { username: username });
-  let reviews = reviewsRes.reviews || []; // Start with raw reviews
+    // ---------------------------
+    // Get User Profile
+    // ---------------------------
+    let userRes;
+    try {
+      userRes = await grpcCall(coreClient, "GetUserProfile", { username });
+    } catch (err) {
+      if (err.details === "User not found") {
+        return res.status(404).render("404", { message: "User not found" });
+      }
+      console.error("GetUserProfile ERROR:", err);
+      return res.status(500).send("Internal server error");
+    }
 
-  // --- CRITICAL FIX: AUGMENT REVIEWS WITH CAFE DETAILS (ID and IMAGE) ---
-  if (reviews.length > 0) {
-    // 1. Get ALL cafes from Core API for lookup (assuming 'GetCafes' returns all)
-    const allCafesRes = await grpcCall(coreClient, 'GetCafes', { search: "" });
-    const allCafes = allCafesRes.cafes || [];
+    // ---------------------------
+    // Get Reviews
+    // ---------------------------
+    let reviewsRes;
+    try {
+      reviewsRes = await grpcCall(reviewClient, "GetReviews", { username });
+    } catch (err) {
+      console.error("GetReviews ERROR:", err);
+      reviewsRes = { reviews: [] }; // Fail gracefully
+    }
 
-    // 2. Create a map for quick lookup: { cafeName: { _id, image } }
-    const cafeDataMap = {};
-    allCafes.forEach(cafe => {
-      // Store the ID and Image using the Name as the key
-      cafeDataMap[cafe.name] = {
-        _id: cafe._id,
-        image: cafe.image
-      };
+    let reviews = reviewsRes.reviews || [];
+
+    // ---------------------------
+    // Add Cafe ID + Image to Reviews
+    // ---------------------------
+    if (reviews.length > 0) {
+      let allCafesRes;
+      try {
+        allCafesRes = await grpcCall(coreClient, "GetCafes", { search: "" });
+      } catch (err) {
+        console.error("GetCafes ERROR:", err);
+        allCafesRes = { cafes: [] }; // Fail gracefully
+      }
+
+      const allCafes = allCafesRes.cafes || [];
+
+      // Map by name
+      const cafeDataMap = {};
+      allCafes.forEach(cafe => {
+        cafeDataMap[cafe.name] = {
+          _id: cafe._id,
+          image: cafe.image
+        };
+      });
+
+      // Replace review.cafe string with object {name, _id, image}
+      reviews = reviews.map(review => {
+        const cafeName = review.cafe;
+        const details = cafeDataMap[cafeName] || {
+          _id: null,
+          image: "https://via.placeholder.com/50"
+        };
+
+        review.cafe = {
+          name: cafeName,
+          _id: details._id,
+          image: details.image
+        };
+
+        return review;
+      });
+    }
+
+    // ---------------------------
+    // Get User Reservations
+    // ---------------------------
+    let reservationRes;
+    try {
+      reservationRes = await grpcCall(
+        reservationClient,
+        "GetUserReservations",
+        { username }
+      );
+    } catch (err) {
+      console.error("GetUserReservations ERROR:", err);
+      reservationRes = { reservations: [] };
+    }
+
+    // ---------------------------
+    // Owner Reservation Requests
+    // ---------------------------
+    let ownerRequests = [];
+    if (
+      res.locals.user.username === username &&
+      userRes.cafes &&
+      userRes.cafes.length > 0
+    ) {
+      try {
+        const ownerRes = await grpcCall(
+          reservationClient,
+          "GetOwnerReservations",
+          { cafes: userRes.cafes }
+        );
+        ownerRequests = ownerRes.reservations || [];
+      } catch (err) {
+        console.error("GetOwnerReservations ERROR:", err);
+      }
+    }
+
+    // ---------------------------
+    // Render Page
+    // ---------------------------
+    return res.render("profile_user", {
+      layout: "index",
+      checkUser: userRes,
+      review: reviews,
+      reservations: reservationRes.reservations || [],
+      ownerRequests,
+      currentLoggedIn: res.locals.user.username === username
     });
 
-    // 3. Update each review object with the necessary cafe details
-    reviews = reviews.map(review => {
-      const cafeName = review.cafe;
-      const cafeDetails = cafeDataMap[cafeName] || { _id: null, image: 'https://via.placeholder.com/50' };
-
-      // Replace the simple 'review.cafe' string with a new object
-      review.cafe = {
-        name: cafeName,
-        _id: cafeDetails._id, // Add the Cafe ID for the link
-        image: cafeDetails.image // Add the image URL
-      };
-      return review;
-    });
+  } catch (err) {
+    console.error("PROFILE_USER ROUTE FATAL ERROR:", err);
+    return res.status(500).send("Something went wrong.");
   }
-  // ------------------------------------------------------------------------
-
-  // Get Reservations made by User
-  const userReservations = await grpcCall(reservationClient, 'GetUserReservations', { username: username });
-
-  let ownerRequests = [];
-  // If viewing own profile and is an owner
-  if (res.locals.user.username === username && userRes.cafes && userRes.cafes.length > 0) {
-    const ownerRes = await grpcCall(reservationClient, 'GetOwnerReservations', { cafes: userRes.cafes });
-    ownerRequests = ownerRes.reservations || [];
-  }
-
-  res.render('profile_user', {
-    layout: 'index',
-    checkUser: userRes,
-    review: reviews, // Use the augmented reviews array
-    reservations: userReservations.reservations || [],
-    ownerRequests: ownerRequests,
-    currentLoggedIn: res.locals.user.username === username
-  });
 });
 server.get('/cafe/:cafe_id', (req, res) => {
 

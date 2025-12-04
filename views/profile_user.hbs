@@ -43,7 +43,7 @@
                 {{#each reservations}}
                 <div class="profile-details-right-item" style="border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px;">
                     <h4 style="margin: 0;">{{cafe_name}}</h4>
-                    <p style="margin: 5px 0; font-size: 0.9em; color: #555;">Date: {{date}} at {{time}}</p>
+                    <p style="margin: 5px 0; font-size: 0.9em; color: #555;">Date: {{date}}</p>
                     <p style="margin: 0;">
                         <strong>Status: </strong>
                         <span style="font-weight: bold; color: {{#ifEquals status 'Confirmed'}}green{{else ifEquals status 'Rejected'}}red{{else}}orange{{/ifEquals}};">
@@ -71,8 +71,8 @@
                     <div class="profile-details-right-item" style="background-color: white; border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; overflow-wrap: break-word;">
                     <h3 style="margin-top: 0;">Request for: {{cafe_name}}</h3>
                         <p><strong>From User:</strong> {{username}}</p>
-                        <p><strong>Date/Time:</strong> {{date}} @ {{time}}</p>
-                        <p><strong>Notes:</strong> {{notes}}</p>
+                        <p><strong>Date/Time:</strong> {{date}}</p>
+                        <!-- <p><strong>Notes:</strong> {{notes}}</p> -->
                         <p><strong>Current Status:</strong>
                             <span style="font-weight: bold; color: {{#ifEquals status 'Confirmed'}}green{{else ifEquals status 'Rejected'}}red{{else}}orange{{/ifEquals}};">
                                 {{status}}
