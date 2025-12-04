@@ -64,12 +64,12 @@
             <!-- === OWNER DASHBOARD (Faculty View / Upload Grades) === -->
             <!-- Only shows if the logged-in user owns cafes and has incoming requests -->
             {{#if ownerRequests}}
-            <div style="background-color: #fff8e1; padding: 15px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ffe082;">
+            <div style="background-color: #fff8e1; padding-left: 15px; padding-right:45px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ffe082;">
                 <h2 style="margin-top: 0; color: #d35400;">Manage Reservations</h2>
-                <div class="profile-details-right-parent">
+                <div class="profile-details-right-parent" style="overflow-wrap: break-word">
                     {{#each ownerRequests}}
-                    <div class="profile-details-right-item" style="background-color: white; border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px;">
-                        <h3 style="margin-top: 0;">Request for: {{cafe_name}}</h3>
+                    <div class="profile-details-right-item" style="background-color: white; border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; border-radius: 5px; overflow-wrap: break-word;">
+                    <h3 style="margin-top: 0;">Request for: {{cafe_name}}</h3>
                         <p><strong>From User:</strong> {{username}}</p>
                         <p><strong>Date/Time:</strong> {{date}} @ {{time}}</p>
                         <p><strong>Notes:</strong> {{notes}}</p>
@@ -111,10 +111,10 @@
                 {{#if review}}
                 {{#each review}}
                 <div class="profile-details-right-item">
-                    <a href="/cafe1?cafe_id={{cafe_id}}">
+                    <a href="/cafe1?cafe_id={{cafe._id}}">
                         <div class="profile-details-right-line">
-                            <img src="{{image_src}}" onerror="this.src='https://via.placeholder.com/50';" />
-                            <h3>{{cafe}}</h3>
+                            <img src="{{cafe.image}}" onerror="this.src='https://via.placeholder.com/50';" />
+                            <h3>{{cafe.name}}</h3>
                         </div>
                     </a>
                     <div class="profile-details-right-line">

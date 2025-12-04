@@ -244,6 +244,39 @@ server.get('/profile_user', async (req, res) => {
 
   // Get Reviews made by User
   const reviewsRes = await grpcCall(reviewClient, 'GetReviews', { username: username });
+  let reviews = reviewsRes.reviews || []; // Start with raw reviews
+
+  // --- CRITICAL FIX: AUGMENT REVIEWS WITH CAFE DETAILS (ID and IMAGE) ---
+  if (reviews.length > 0) {
+    // 1. Get ALL cafes from Core API for lookup (assuming 'GetCafes' returns all)
+    const allCafesRes = await grpcCall(coreClient, 'GetCafes', { search: "" });
+    const allCafes = allCafesRes.cafes || [];
+
+    // 2. Create a map for quick lookup: { cafeName: { _id, image } }
+    const cafeDataMap = {};
+    allCafes.forEach(cafe => {
+      // Store the ID and Image using the Name as the key
+      cafeDataMap[cafe.name] = {
+        _id: cafe._id,
+        image: cafe.image
+      };
+    });
+
+    // 3. Update each review object with the necessary cafe details
+    reviews = reviews.map(review => {
+      const cafeName = review.cafe;
+      const cafeDetails = cafeDataMap[cafeName] || { _id: null, image: 'https://via.placeholder.com/50' };
+
+      // Replace the simple 'review.cafe' string with a new object
+      review.cafe = {
+        name: cafeName,
+        _id: cafeDetails._id, // Add the Cafe ID for the link
+        image: cafeDetails.image // Add the image URL
+      };
+      return review;
+    });
+  }
+  // ------------------------------------------------------------------------
 
   // Get Reservations made by User
   const userReservations = await grpcCall(reservationClient, 'GetUserReservations', { username: username });
@@ -258,13 +291,24 @@ server.get('/profile_user', async (req, res) => {
   res.render('profile_user', {
     layout: 'index',
     checkUser: userRes,
-    review: reviewsRes.reviews || [],
+    review: reviews, // Use the augmented reviews array
     reservations: userReservations.reservations || [],
     ownerRequests: ownerRequests,
     currentLoggedIn: res.locals.user.username === username
   });
 });
+server.get('/cafe/:cafe_id', (req, res) => {
 
+  const cafeId = req.params.cafe_id;
+
+  const targetUrl = res.locals.loggedIn ?
+    `/cafe1_user?cafe_id=${cafeId}` :
+    `/cafe1?cafe_id=${cafeId}`;
+
+  res.redirect(targetUrl);
+
+
+});
 // Start View Server
 server.listen(PORT, () => {
   console.log(`VIEW SERVER running on http://localhost:${PORT}`);
