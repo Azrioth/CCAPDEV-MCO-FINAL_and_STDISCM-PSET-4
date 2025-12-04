@@ -57,28 +57,60 @@ exports.addReview = async (call, callback) => {
 // 3. Delete Review
 exports.deleteReview = async (call, callback) => {
   try {
-    const { id } = call.request;
-    await reviewModel.findByIdAndDelete(id);
-    callback(null, { status: 'success' });
+    const { review_id } = call.request;
+
+    // FIX: Use reviewModel instead of Review
+    const result = await reviewModel.deleteOne({ _id: review_id });
+
+    if (result.deletedCount === 0) {
+      return callback(null, { status: 'error', error: 'Review not found or already deleted.' });
+    }
+
+    // Return success response
+    callback(null, { status: 'success', message: 'Review deleted successfully.' });
+
   } catch (err) {
-    console.error("Error deleting review:", err);
-    callback(null, { status: 'error', error: err.message });
+    console.error("DeleteReview ERROR:", err.message);
+    callback(null, { status: 'error', error: 'Internal server error during deletion.' });
   }
 };
 
-// 4. Edit Review
+
+// 4. EDIT Review (EditReview)
 exports.editReview = async (call, callback) => {
   try {
-    const { id, rating, comment } = call.request;
+    const { review_id, rating, comment } = call.request;
 
-    await reviewModel.findByIdAndUpdate(id, {
+    // 💡 FIX 2: Validate the review_id format before attempting a database query
+    if (!mongoose.Types.ObjectId.isValid(review_id)) {
+      console.error(`Invalid ObjectId format for review ID: ${review_id}`);
+      return callback(null, { status: 'error', error: `Review ID "${review_id}" is not a valid ID format.` });
+    }
+
+    // Prepare the fields to update
+    const updates = {
       rating: rating,
       comment: comment,
-      isEdited: true
-    });
-    callback(null, { status: 'success' });
+      isEdited: true, // Set a flag to show the review was edited
+      date: new Date() // Update the timestamp
+    };
+
+    // Use reviewModel to find and update the review
+    const updatedReview = await reviewModel.findByIdAndUpdate(
+      review_id,
+      { $set: updates },
+      { new: true } // Return the updated document
+    );
+
+    if (!updatedReview) {
+      return callback(null, { status: 'error', error: 'Review not found.' });
+    }
+
+    // Return success response
+    callback(null, { status: 'success', message: 'Review updated successfully.' });
+
   } catch (err) {
-    console.error("Error editing review:", err);
-    callback(null, { status: 'error', error: err.message });
+    console.error("EditReview ERROR:", err.message);
+    callback(null, { status: 'error', error: 'Internal server error during update.' });
   }
 };

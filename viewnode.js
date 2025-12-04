@@ -512,6 +512,132 @@ server.post('/submitEditUser', async (req, res) => {
     return res.redirect(`/edit_profile?error=${encodeURIComponent(errorMsg)}`);
   }
 });
+
+server.get('/edit_review', async (req, res) => {
+  if (!res.locals.loggedIn) {
+    return res.redirect('/login');
+  }
+
+  const review_id = req.query.id;
+  if (!review_id) {
+    const errorMsg = 'Review ID is missing.';
+    return res.redirect(`/profile_user?username=${res.locals.user.username}&error=${encodeURIComponent(errorMsg)}`);
+  }
+
+  let review = {};
+  let cafeName = 'Unknown Cafe';
+
+  try {
+    // A. Call Review Service to get the review details by ID
+    // CRITICAL: We pass the review_id to get the single review, which should include the cafe_id.
+    // NOTE: This assumes your ReviewService.GetReviews can handle being passed a review_id
+    const reviewRes = await grpcCall(reviewClient, 'GetReviews', { review_id: review_id });
+    review = reviewRes.reviews?.[0];
+
+    if (!review) {
+      const errorMsg = 'Review not found.';
+      return res.redirect(`/profile_user?username=${res.locals.user.username}&error=${encodeURIComponent(errorMsg)}`);
+    }
+
+    // B. Call Core Service to get the Cafe Name using the cafe_id
+    if (review.cafe_id) {
+      // CRITICAL: Call the Core Service's GetCafeById method
+      const cafeDetails = await grpcCall(coreClient, 'GetCafeById', { cafe_id: review.cafe_id });
+      if (cafeDetails.cafe && cafeDetails.cafe.name) {
+        cafeName = cafeDetails.cafe.name;
+      } else {
+        console.warn(`Cafe not found for ID: ${review.cafe_id}`);
+      }
+    }
+
+    // C. Render the add_edit_review.hbs template
+    res.render('add_edit_review', {
+      layout: 'index',
+      editing: true,
+      review_id: review._id,
+      cafe_name: cafeName, // <-- FIXED: This is now the fetched cafe name
+      rating: review.rating,
+      comment: review.comment,
+      loggedIn: res.locals.loggedIn,
+      errorMessage: req.query.error
+    });
+
+  } catch (error) {
+    console.error(`Error loading edit review page for ID ${review_id}:`, error.message);
+    const errorMsg = 'Failed to load review data for editing.';
+    return res.redirect(`/profile_user?username=${res.locals.user.username}&error=${encodeURIComponent(errorMsg)}`);
+  }
+});
+
+// 2. POST /submitEditedReview - HANDLE FORM SUBMISSION
+server.post('/submitEditedReview', async (req, res) => {
+  if (!res.locals.loggedIn) {
+    return res.redirect('/login');
+  }
+
+  // FIX: Get the review_id from the URL query parameter
+  const review_id = req.query.id;
+  const username = res.locals.user.username; // For redirection
+  const { input_rating, input_review_body } = req.body;
+
+  const rating = parseInt(input_rating, 10);
+  if (isNaN(rating) || rating < 1 || rating > 5) {
+    const errorMsg = 'Rating must be a number between 1 and 5.';
+    return res.redirect(`/edit_review?id=${review_id}&error=${encodeURIComponent(errorMsg)}`);
+  }
+
+  try {
+    const updateRes = await grpcCall(reviewClient, 'EditReview', {
+      review_id: review_id,
+      rating: rating,
+      comment: input_review_body
+    });
+
+    if (updateRes.status === 'error') {
+      const errorMsg = `Edit failed: ${updateRes.error}`;
+      return res.redirect(`/edit_review?id=${review_id}&error=${encodeURIComponent(errorMsg)}`);
+    }
+
+    const successMsg = 'Review updated successfully!';
+    return res.redirect(`/profile_user?username=${username}&success=${encodeURIComponent(successMsg)}`);
+
+  } catch (error) {
+    console.error(`Fatal error updating review ID ${review_id}:`, error.message);
+    const errorMsg = 'An internal server error occurred during the review update.';
+    return res.redirect(`/edit_review?id=${review_id}&error=${encodeURIComponent(errorMsg)}`);
+  }
+});
+
+// --- REVIEW DELETION ROUTE ---
+
+// 3. POST /delete/:review_id - HANDLE DELETE SUBMISSION
+server.post('/delete/:review_id', async (req, res) => {
+  if (!res.locals.loggedIn) {
+    return res.redirect('/login');
+  }
+
+  const review_id = req.params.review_id;
+  const username = res.locals.user.username;
+
+  try {
+    // Call Review Service to Delete the Review
+    const deleteRes = await grpcCall(reviewClient, 'DeleteReview', { review_id: review_id });
+
+    if (deleteRes.status === 'error') {
+      const errorMsg = `Deletion failed: ${deleteRes.error}`;
+      return res.redirect(`/profile_user?username=${username}&error=${encodeURIComponent(errorMsg)}`);
+    }
+
+    // Success: Redirect back to the user's profile
+    const successMsg = 'Review deleted successfully!';
+    return res.redirect(`/profile_user?username=${username}&success=${encodeURIComponent(successMsg)}`);
+
+  } catch (error) {
+    console.error(`Fatal error deleting review ID ${review_id}:`, error.message);
+    const errorMsg = 'An internal server error occurred during review deletion.';
+    return res.redirect(`/profile_user?username=${username}&error=${encodeURIComponent(errorMsg)}`);
+  }
+});
 // Start View Server
 server.listen(PORT, () => {
   console.log(`VIEW SERVER running on http://localhost:${PORT}`);
