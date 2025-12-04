@@ -94,26 +94,45 @@ exports.updateUserProfile = async (call, callback) => {
   try {
     const { username, desc, profile_pic, password } = call.request;
 
+    // 1. Prepare the fields to update
     const updates = {};
-    if (desc) updates.desc = desc;
-    if (profile_pic) updates.profile_pic = profile_pic;
 
-    // NOTE: Handle password hashing if the password field is updated
-    if (password) {
-      // Example: updates.password = await bcrypt.hash(password, 10);
-      updates.password = password; // Assuming handling in model or will be fixed
+    // Only include fields if they are provided/defined in the request
+    if (desc !== undefined) {
+      updates.desc = desc;
+    }
+    if (profile_pic !== undefined) {
+      updates.profile_pic = profile_pic;
     }
 
+    // 2. Handle Password Change (Only if a new password was provided)
+    if (password) {
+      // Hash the new password
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updates.password = hashedPassword;
+    }
+
+    // 3. Perform the database update
+    // FIX: Replaced 'userModel' with the imported variable 'User'
     const updatedUser = await User.findOneAndUpdate(
-      { username },
-      { $set: updates },
-      { new: true }
+      { username: username }, // Find the user by their unique username
+      { $set: updates },      // Apply the updates
+      { new: true, runValidators: true } // Return the updated document
     );
 
-    if (!updatedUser) return callback(null, { status: 'error', error: 'User not found' });
+    if (!updatedUser) {
+      return callback(null, { status: 'error', error: 'User not found.' });
+    }
 
-    callback(null, { status: 'success', message: 'Profile updated' });
+    // 4. Return success response
+    callback(null, {
+      status: 'success',
+      message: 'Profile updated successfully.'
+    });
+
   } catch (err) {
-    callback(null, { status: 'error', error: err.message });
+    console.error("UpdateUserProfile ERROR:", err.message);
+    // Return an error status for any internal DB or hashing errors
+    callback(null, { status: 'error', error: 'Internal server error during update.' });
   }
 };

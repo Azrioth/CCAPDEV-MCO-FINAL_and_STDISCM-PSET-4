@@ -433,6 +433,85 @@ server.get('/cafe/:cafe_id', (req, res) => {
 
 
 });
+
+server.get('/edit_profile', async (req, res) => {
+  if (!res.locals.loggedIn) {
+    return res.redirect('/login');
+  }
+
+  // Use the username of the currently logged-in user
+  const username = res.locals.user.username;
+  let userProfile = {};
+
+  try {
+    // Fetch the latest user profile data from the Core Service
+    const userRes = await grpcCall(coreClient, 'GetUserProfile', { username: username });
+    userProfile = userRes;
+
+    res.render('edit_profile', {
+      layout: 'index',
+      user: userProfile,
+      loggedIn: res.locals.loggedIn,
+      // Pass query parameters to display messages
+      errorMessage: req.query.error,
+      successMessage: req.query.success
+    });
+
+  } catch (error) {
+    console.error(`Error loading edit profile page for ${username}:`, error.message);
+    const errorMessage = encodeURIComponent('Failed to load profile data for editing due to a server error.');
+    // Redirect back to profile page on error
+    return res.redirect(`/profile_user?username=${username}&error=${errorMessage}`);
+  }
+});
+
+
+// 8. POST /submitEditUser - HANDLE FORM SUBMISSION
+server.post('/submitEditUser', async (req, res) => {
+  if (!res.locals.loggedIn) {
+    return res.redirect('/login');
+  }
+
+  // Get data from the form (matching input name attributes in edit_profile.hbs)
+  const { username, input_desc, input_profile_pic, input_password, confirm_password } = req.body;
+
+  // 1. Password Validation Check
+  if (input_password && input_password !== confirm_password) {
+    const errorMsg = 'Error: New Password and Confirm New Password do not match.';
+    // Redirect back to the form with an error message
+    return res.redirect(`/edit_profile?error=${encodeURIComponent(errorMsg)}`);
+  }
+
+  // 2. Prepare Update Data for gRPC call
+  const updateData = {
+    username: username,
+    // Use the ternary operator to ensure empty strings are sent if the user clears the field
+    desc: input_desc !== undefined ? input_desc : '',
+    profile_pic: input_profile_pic !== undefined ? input_profile_pic : '',
+    password: input_password || '' // Only send password if provided
+  };
+
+  try {
+    // 3. Call Core Service to Update Profile
+    const updateRes = await grpcCall(coreClient, 'UpdateUserProfile', updateData);
+
+    if (updateRes.status === 'error') {
+      const errorMsg = `Update failed: ${updateRes.error}`;
+      return res.redirect(`/edit_profile?error=${encodeURIComponent(errorMsg)}`);
+    }
+
+    // 4. Update was successful
+    const successMsg = 'Profile updated successfully!';
+
+    // Redirect back to the user's profile page to confirm changes
+    return res.redirect(`/profile_user?username=${username}&success=${encodeURIComponent(successMsg)}`);
+
+  } catch (error) {
+    console.error(`Fatal error updating profile for ${username}:`, error.message);
+    const errorMsg = 'An internal server error occurred during the profile update.';
+    return res.redirect(`/edit_profile?error=${encodeURIComponent(errorMsg)}`);
+  }
+});
 // Start View Server
 server.listen(PORT, () => {
   console.log(`VIEW SERVER running on http://localhost:${PORT}`);
